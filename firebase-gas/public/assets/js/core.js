@@ -81,6 +81,12 @@ window.App = (function () {
     var empty = function (icon, text, extra) {
         return '<div class="empty-state py-5"><i class="bi bi-' + icon + '"></i><p>' + esc(text) + '</p>' + (extra || '') + '</div>';
     };
+    /** School logo (uploaded by admin) or the default building icon. */
+    var brandLogo = function (cls) {
+        var logo = S.settings.logo;
+        return logo ? '<span class="brand-logo has-img ' + (cls || '') + '"><img src="' + esc(logo) + '" alt="Logo sekolah"></span>'
+            : '<span class="brand-logo ' + (cls || '') + '"><i class="bi bi-buildings"></i></span>';
+    };
     var pageTitle = function (title, subtitle, actions) {
         return '<div class="page-head"><div><h1 class="page-title">' + esc(title) + '</h1>' + (subtitle ? '<p class="page-subtitle">' + subtitle + '</p>' : '') +
             '</div>' + (actions ? '<div class="page-actions">' + actions + '</div>' : '') + '</div>';
@@ -229,7 +235,7 @@ window.App = (function () {
     function authLayout(inner) {
         var s = S.settings;
         return '<div class="auth-wrap"><section class="auth-hero"><div class="auth-hero-inner">' +
-            '<div class="d-flex align-items-center gap-3 mb-5"><span class="brand-logo lg"><i class="bi bi-buildings"></i></span><div>' +
+            '<div class="d-flex align-items-center gap-3 mb-5">' + brandLogo('lg') + '<div>' +
             '<div class="fw-bold fs-5">' + esc(s.system_name || 'Sistem Tempahan Bilik Khas') + '</div><div class="opacity-75 small">' + esc(s.school_name || '') + '</div></div></div>' +
             '<h1 class="display-6 fw-bold mb-3">Tempah bilik khas sekolah dengan mudah, pantas &amp; tanpa pertembungan.</h1>' +
             '<p class="lead opacity-75 mb-5">Pilih nama anda, log masuk, semak kekosongan secara langsung dan pantau jadual mingguan atau bulanan di satu tempat.</p>' +
@@ -239,7 +245,7 @@ window.App = (function () {
             '<div class="col-sm-6"><div class="feat"><i class="bi bi-calendar-week"></i><div><strong>Jadual interaktif</strong><span>Paparan harian, mingguan &amp; bulanan</span></div></div></div>' +
             '<div class="col-sm-6"><div class="feat"><i class="bi bi-arrow-repeat"></i><div><strong>Tempahan berulang</strong><span>Tempah slot yang sama setiap minggu</span></div></div></div>' +
             '</div></div></section><section class="auth-panel"><div class="auth-card">' +
-            '<div class="d-lg-none text-center mb-4"><span class="brand-logo lg mx-auto mb-2"><i class="bi bi-buildings"></i></span><div class="fw-bold">' + esc(s.system_name || '') + '</div><div class="small text-body-secondary">' + esc(s.school_name || '') + '</div></div>' +
+            '<div class="d-lg-none text-center mb-4">' + brandLogo('lg mx-auto mb-2') + '<div class="fw-bold">' + esc(s.system_name || '') + '</div><div class="small text-body-secondary">' + esc(s.school_name || '') + '</div></div>' +
             inner + '</div></section></div>';
     }
 
@@ -394,7 +400,7 @@ window.App = (function () {
 
     function startSession() {
         return api('session').then(function (d) {
-            S.settings = d.settings || S.settings;
+            S.settings = Object.assign(d.settings || {}, { logo: S.settings.logo || '' });
             applySettings();
             S.user = d.user;
             S.rooms = d.rooms;
@@ -410,11 +416,20 @@ window.App = (function () {
     function applySettings() {
         $$('[data-setting]').forEach(function (el) { el.textContent = S.settings[el.dataset.setting] || ''; });
         document.title = S.settings.system_name || 'Tempahan Bilik Khas';
+        var side = $('#sidebarLogo');
+        if (side) side.outerHTML = brandLogo().replace('<span class="brand-logo', '<span id="sidebarLogo" class="brand-logo');
+        var icon = document.querySelector('link[rel="icon"]');
+        if (icon && S.settings.logo) icon.href = S.settings.logo;
+    }
+
+    function setLogo(logo) {
+        S.settings.logo = logo || '';
+        applySettings();
     }
 
     function refreshSession() {
         return api('session').then(function (d) {
-            S.settings = d.settings; S.rooms = d.rooms; S.periods = d.periods; S.user = d.user;
+            S.settings = Object.assign(d.settings, { logo: S.settings.logo || '' }); S.rooms = d.rooms; S.periods = d.periods; S.user = d.user;
             applySettings();
             renderNav();
         });
@@ -633,7 +648,7 @@ window.App = (function () {
         DAYS: DAYS, MONTHS: MONTHS, MONTHS_SHORT: MONTHS_SHORT, fmtDate: fmtDate, fmtDateTime: fmtDateTime, dayName: dayName, duration: duration,
         timeAgo: timeAgo, initials: initials, debounce: debounce, STATUS: STATUS, ROOM_STATUS: ROOM_STATUS, APPROVAL_MODES: APPROVAL_MODES,
         statusBadge: statusBadge, roomStatusBadge: roomStatusBadge, roomNeedsApproval: roomNeedsApproval, room: room, dot: dot, empty: empty,
-        pageTitle: pageTitle, link: link, go: go, formData: formData, busy: busy, csvDownload: csvDownload, pager: pager,
+        pageTitle: pageTitle, brandLogo: brandLogo, setLogo: setLogo, link: link, go: go, formData: formData, busy: busy, csvDownload: csvDownload, pager: pager,
         toast: toast, confirm: confirmBox, showError: showError, api: api, route: addRoute, reload: route, refreshSession: refreshSession,
         charts: charts, loadScript: loadScript, vendor: VENDOR, displayUrl: displayUrl, start: start,
     };

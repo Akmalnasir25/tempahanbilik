@@ -477,7 +477,8 @@
             var field = function (label, value, sub, cls) {
                 return '<div class="' + (cls || 'col-sm-6') + '"><div class="detail-label">' + label + '</div><div class="detail-value">' + value + '</div>' + (sub ? '<div class="small text-body-secondary">' + sub + '</div>' : '') + '</div>';
             };
-            h += '<div class="row g-4"><div class="col-lg-8"><div class="card booking-slip"><div class="slip-head" style="--c:' + esc(b.room_color) + '"><div><div class="small opacity-75">No. Rujukan</div><div class="fs-4 fw-bold font-monospace">' + esc(b.ref_no) + '</div></div>' +
+            h += '<div class="row g-4"><div class="col-lg-8"><div class="card booking-slip"><div class="slip-head" style="--c:' + esc(b.room_color) + '"><div class="d-flex align-items-center gap-3">' + (S.settings.logo ? A.brandLogo('lg') : '') +
+                '<div><div class="small opacity-75">No. Rujukan</div><div class="fs-4 fw-bold font-monospace">' + esc(b.ref_no) + '</div></div></div>' +
                 '<div class="text-end">' + A.statusBadge(b.status) + '<div class="small opacity-75 mt-1 print-only">' + esc(S.settings.school_name) + '</div></div></div><div class="card-body p-4"><div class="row g-4 mb-2">' +
                 field('Bilik', A.dot(b.room_color) + esc(b.room_name) + ' <span class="text-body-secondary">(' + esc(b.room_code) + ')</span>', '<i class="bi bi-geo-alt me-1"></i>' + esc(b.room_location)) +
                 field('Tarikh &amp; Masa', A.fmtDate(b.date, true), '<i class="bi bi-clock me-1"></i>' + b.start_time + ' – ' + b.end_time + ' (' + A.duration(b.start_time, b.end_time) + ')') +

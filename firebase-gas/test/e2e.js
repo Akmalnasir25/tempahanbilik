@@ -184,6 +184,26 @@ const gas = (body) => fetch(BASE + 'gas', { method: 'POST', body: JSON.stringify
     await admin.screenshot({ path: SHOTS + '/07-settings.png', fullPage: true });
     await admin.click('#settingsForm button.btn-lg');
     await wait(admin, '.tb-toast >> text=Tetapan sistem disimpan');
+    log('7b. Muat naik logo sekolah');
+    await admin.goto(BASE + '#/admin/settings');
+    await wait(admin, '#logoPick');
+    await admin.setInputFiles('#logoFile', path.join(__dirname, 'logo-contoh.png'));
+    await wait(admin, '.tb-toast >> text=Logo sekolah dikemas kini');
+    await wait(admin, '#sidebarLogo img');
+    const logoLen = (await gas({ action: 'config' })).data.logo.length;
+    assert(logoLen > 1000 && logoLen <= 200000, 'Logo dikecilkan & disimpan (' + Math.round(logoLen / 1024) + ' KB)');
+    const dims = await admin.$eval('#sidebarLogo img', (i) => [i.naturalWidth, i.naturalHeight]);
+    assert(dims[0] <= 256 && dims[1] <= 256, 'Logo diubah saiz kepada ' + dims.join('×'));
+    await idle(admin);
+    await admin.screenshot({ path: SHOTS + '/07b-logo-settings.png', fullPage: true });
+    const badLogo = await admin.evaluate(() => App.api('admin.logo.save', { logo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }).then(() => 'accepted', (e) => e.message));
+    assert(badLogo !== 'accepted', 'Format logo tidak sah (SVG mentah) ditolak oleh pelayan');
+    const guruLogo = await guru.evaluate(() => App.api('admin.logo.save', { logo: '' }).then(() => 'accepted', (e) => e.code));
+    assert(guruLogo === 'FORBIDDEN', 'Guru tidak boleh menukar logo');
+    await guru.goto(BASE + '#/dashboard');
+    await guru.reload();
+    await wait(guru, '.hero-card');
+
     await guru.goto(BASE + '#/book?room_id=3&date=' + day + '&start=10:20&end=10:50');
     await wait(guru, '#bookingForm');
     await guru.fill('[name=purpose]', 'Eksperimen');
@@ -191,6 +211,7 @@ const gas = (body) => fetch(BASE + 'gas', { method: 'POST', body: JSON.stringify
     await guru.click('#submitBtn');
     await wait(guru, '.success-banner');
     assert(await guru.isVisible('.slip-head >> text=Menunggu'), 'Tempahan berstatus Menunggu');
+    assert(await guru.isVisible('.slip-head .brand-logo img'), 'Logo sekolah dipaparkan pada slip tempahan');
     await admin.goto(BASE + '#/admin/bookings?status=pending');
     await wait(admin, '.row-check');
     await admin.screenshot({ path: SHOTS + '/08-admin-bookings.png', fullPage: true });
@@ -207,6 +228,7 @@ const gas = (body) => fetch(BASE + 'gas', { method: 'POST', body: JSON.stringify
     const newbie = await newPage(browser, 'newbie');
     await newbie.goto(BASE);
     await wait(newbie, '#showRegister');
+    assert(await newbie.isVisible('.auth-hero .brand-logo img'), 'Logo sekolah dipaparkan di halaman log masuk');
     await newbie.click('#showRegister');
     await newbie.fill('#regForm [name=name]', 'Cikgu Baru');
     await newbie.fill('#regForm [name=ic]', '880202025555');
@@ -282,6 +304,7 @@ const gas = (body) => fetch(BASE + 'gas', { method: 'POST', body: JSON.stringify
     await tv.goto(BASE + 'display.html');
     await tv.waitForSelector('.db-room');
     await tv.screenshot({ path: SHOTS + '/20-display.png', fullPage: true });
+    assert(await tv.isVisible('#logo img'), 'Logo dipaparkan pada paparan TV');
     const mobile = await newPage(browser, 'mobile', { viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
     await mobile.goto(BASE);
     await wait(mobile, '#userSelect');
@@ -290,6 +313,15 @@ const gas = (body) => fetch(BASE + 'gas', { method: 'POST', body: JSON.stringify
     await wait(mobile, '.hero-card');
     await idle(mobile);
     await mobile.screenshot({ path: SHOTS + '/22-mobile-dark.png', fullPage: true });
+
+    log('14. Buang logo');
+    await admin.goto(BASE + '#/admin/settings');
+    await wait(admin, '#logoRemove');
+    await admin.click('#logoRemove');
+    await admin.click('[data-confirm-ok]');
+    await wait(admin, '.tb-toast >> text=Logo sekolah dibuang');
+    assert((await gas({ action: 'config' })).data.logo === '', 'Logo dibuang dan ikon lalai kembali');
+    assert(await admin.isVisible('#sidebarLogo .bi-buildings'), 'Sidebar kembali ke ikon lalai');
 
     await browser.close();
     console.log('\nMASALAH (' + problems.length + '):\n' + problems.join('\n'));

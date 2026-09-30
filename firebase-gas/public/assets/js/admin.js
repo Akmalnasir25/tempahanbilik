@@ -375,6 +375,11 @@
                 }).join('') + '</div>' +
                 (pending ? '<div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="approve_pending" id="approvePending"><label class="form-check-label small" for="approvePending">Luluskan juga <strong>' + pending + ' tempahan</strong> yang sedang menunggu, jika mod baharu tidak lagi memerlukan kelulusan untuk tempahan tersebut</label></div>' : '') +
                 '</div></div><div class="row g-4"><div class="col-lg-6"><div class="card h-100"><div class="card-header"><h2 class="card-title"><i class="bi bi-building me-2"></i>Maklumat Sekolah</h2></div><div class="card-body">' +
+                '<label class="form-label fw-semibold">Logo sekolah</label><div class="logo-upload mb-4"><div id="logoPreview">' + A.brandLogo('xl') + '</div><div class="flex-grow-1">' +
+                '<input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden>' +
+                '<div class="d-flex flex-wrap gap-2 mb-2"><button type="button" class="btn btn-sm btn-primary" id="logoPick"><i class="bi bi-upload me-1"></i>' + (s.logo ? 'Tukar logo' : 'Muat naik logo') + '</button>' +
+                (s.logo ? '<button type="button" class="btn btn-sm btn-light text-danger" id="logoRemove"><i class="bi bi-trash me-1"></i>Buang</button>' : '') + '</div>' +
+                '<div class="form-text mt-0">PNG, JPG, WebP atau SVG. Logo akan dikecilkan secara automatik dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV. Latar lutsinar (PNG) paling cantik.</div></div></div>' +
                 input('system_name', 'Nama sistem') + input('school_name', 'Nama sekolah') + input('school_code', 'Kod sekolah') + input('school_address', 'Alamat') +
                 '</div></div></div><div class="col-lg-6"><div class="card h-100"><div class="card-header"><h2 class="card-title"><i class="bi bi-sliders me-2"></i>Peraturan Tempahan</h2></div><div class="card-body"><div class="row g-3">' +
                 '<div class="col-6"><label class="form-label fw-semibold">Waktu buka</label><input type="time" class="form-control" name="open_time" value="' + esc(s.open_time) + '"></div>' +
@@ -390,6 +395,29 @@
                 sw('allow_weekend', 'Tempahan hujung minggu', 'Benarkan guru menempah pada hari Sabtu &amp; Ahad.') +
                 sw('public_display', 'Paparan skrin awam', 'Benarkan <a href="' + A.displayUrl() + '" target="_blank">paparan jadual hari ini</a> dibuka tanpa log masuk (TV di bilik guru / lobi).') +
                 '</div></div></div></div></div><div class="mt-4"><button class="btn btn-primary btn-lg px-5"><i class="bi bi-save me-1"></i>Simpan Tetapan</button></div></form>';
+            var saveLogo = function (logo, btn) {
+                A.busy(btn, true);
+                return A.api('admin.logo.save', { logo: logo }).then(function (r) {
+                    A.setLogo(r.logo);
+                    A.toast(r.logo ? 'Logo sekolah dikemas kini.' : 'Logo sekolah dibuang.');
+                    A.reload();
+                }).catch(function (err) { A.busy(btn, false); A.showError(err); });
+            };
+            $('#logoPick').onclick = function () { $('#logoFile').click(); };
+            $('#logoFile').onchange = function () {
+                var file = this.files[0];
+                if (!file) return;
+                if (!/^image\//.test(file.type)) { A.toast('Sila pilih fail imej.', 'warning'); return; }
+                if (file.size > 5 * 1024 * 1024) { A.toast('Fail terlalu besar (maksimum 5 MB).', 'warning'); return; }
+                resizeLogo(file).then(function (dataUrl) {
+                    $('#logoPreview').innerHTML = '<span class="brand-logo has-img xl"><img src="' + dataUrl + '" alt=""></span>';
+                    return saveLogo(dataUrl, $('#logoPick'));
+                }).catch(function (err) { A.showError(err); });
+            };
+            if ($('#logoRemove')) $('#logoRemove').onclick = function () {
+                var btn = this;
+                A.confirm('Buang logo sekolah? Ikon lalai akan dipaparkan semula.').then(function (ok) { if (ok) saveLogo('', btn); });
+            };
             $('#settingsForm').onsubmit = function (e) {
                 e.preventDefault();
                 var btn = $('button.btn-lg', this);
@@ -405,6 +433,43 @@
         });
     } });
 
+    /**
+     * Shrinks an uploaded image to fit a square box and returns a PNG/WebP data URL
+     * small enough to store in Google Sheets (see LOGO_MAX in Code.gs).
+     */
+    function resizeLogo(file) {
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onerror = function () { reject(new Error('Fail tidak dapat dibaca.')); };
+            reader.onload = function () {
+                var img = new Image();
+                img.onerror = function () { reject(new Error('Imej tidak sah atau tidak disokong.')); };
+                img.onload = function () {
+                    var encode = function (max) {
+                        var w = img.naturalWidth || max, h = img.naturalHeight || max;
+                        var scale = Math.min(1, max / Math.max(w, h));
+                        var c = document.createElement('canvas');
+                        c.width = Math.max(1, Math.round(w * scale));
+                        c.height = Math.max(1, Math.round(h * scale));
+                        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                        var png = c.toDataURL('image/png');
+                        if (png.length <= 150000) return png;
+                        var webp = c.toDataURL('image/webp', 0.9);
+                        return /^data:image\/webp/.test(webp) && webp.length < png.length ? webp : png;
+                    };
+                    var sizes = [256, 192, 128, 96];
+                    for (var i = 0; i < sizes.length; i++) {
+                        var out = encode(sizes[i]);
+                        if (out.length <= 190000) return resolve(out);
+                    }
+                    reject(new Error('Imej terlalu kompleks untuk disimpan. Cuba logo yang lebih ringkas.'));
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
     /* ==================================================================
      * Audit log
      * ================================================================== */
@@ -414,7 +479,7 @@
             if (!ctx.alive()) return;
             var labels = {
                 'auth.register': ['Permohonan akses', 'person-plus', 'info'], 'booking.create': ['Tempahan baharu', 'plus-circle', 'primary'], 'booking.update': ['Tempahan dipinda', 'pencil', 'primary'],
-                'booking.approved': ['Diluluskan', 'check-circle', 'success'], 'booking.rejected': ['Ditolak', 'x-circle', 'danger'], 'booking.cancelled': ['Dibatalkan', 'slash-circle', 'secondary'],
+                'booking.approved': ['Diluluskan', 'check-circle', 'success'], 'booking.rejected': ['Ditolak', 'x-circle', 'danger'], 'booking.cancelled': ['Dibatalkan', 'slash-circle', 'secondary'], 'settings.logo': ['Logo sekolah', 'image', 'primary'],
                 'auth.login': ['Log masuk', 'box-arrow-in-right', 'secondary'], 'auth.activate': ['Daftar kata laluan', 'key', 'info'], 'auth.fail': ['Log masuk gagal', 'exclamation-triangle', 'warning'],
             };
             ctx.view.innerHTML = A.pageTitle('Log Audit', 'Rekod semua aktiviti penting dalam sistem.') +

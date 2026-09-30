@@ -416,6 +416,28 @@ function setSetting_(key, value) {
   }
 }
 
+/* ---------- School logo ----------
+ * Stored as a data URL split across Settings rows "logo:0", "logo:1", …
+ * because a single Sheets cell holds at most 50,000 characters. */
+var LOGO_CHUNK = 40000;
+var LOGO_MAX = 200000;
+
+function logo_() {
+  return T('Settings').rows().filter(function (r) { return /^logo:\d+$/.test(r.key); })
+    .sort(function (a, b) { return Number(a.key.slice(5)) - Number(b.key.slice(5)); })
+    .map(function (r) { return r.value; }).join('');
+}
+
+function setLogo_(dataUrl) {
+  T('Settings').rows().filter(function (r) { return /^logo:\d+$/.test(r.key); })
+    .sort(function (a, b) { return b._row - a._row; })
+    .forEach(function (r) { T('Settings').sheet.deleteRow(r._row); });
+  T('Settings')._rows = null;
+  for (var i = 0; i * LOGO_CHUNK < dataUrl.length; i++) {
+    T('Settings').insert({ key: 'logo:' + i, value: dataUrl.slice(i * LOGO_CHUNK, (i + 1) * LOGO_CHUNK) });
+  }
+}
+
 function clean_(o) {
   var r = {};
   Object.keys(o).forEach(function (k) { if (k !== '_row') r[k] = o[k]; });
@@ -638,7 +660,7 @@ action_('config', { auth: false }, function () {
   var teachers = T('Users').rows().filter(function (u) { return u.status === 'active'; })
     .map(function (u) { return { id: u.id, name: u.name, department: u.department, activated: !!u.password_hash }; })
     .sort(function (a, b) { return a.name.localeCompare(b.name); });
-  return { system_name: s.system_name, school_name: s.school_name, allow_registration: s.allow_registration, teachers: teachers,
+  return { system_name: s.system_name, school_name: s.school_name, allow_registration: s.allow_registration, teachers: teachers, logo: logo_(),
     rooms: T('Rooms').rows().filter(function (r) { return r.status === 'active'; }).length };
 });
 
@@ -652,7 +674,7 @@ action_('display', { auth: false }, function () {
   var bookings = T('Bookings').rows().filter(function (b) { return b.date === today && BLOCKING[b.status]; })
     .sort(function (a, b) { return a.start_time < b.start_time ? -1 : 1; })
     .map(function (b) { return { room_id: b.room_id, start: b.start_time, end: b.end_time, purpose: b.purpose, class_name: b.class_name, user: userName_(b.user_id) }; });
-  return { school_name: setting_('school_name'), date: today, dateLabel: fmtDate_(today, true), now: nowTime_(), rooms: rooms, bookings: bookings };
+  return { school_name: setting_('school_name'), logo: logo_(), date: today, dateLabel: fmtDate_(today, true), now: nowTime_(), rooms: rooms, bookings: bookings };
 });
 
 /* ---------- Session ---------- */
@@ -1241,6 +1263,17 @@ action_('admin.settings.save', { admin: true, write: true }, function (d, ctx) {
   }
   audit_(ctx, 'settings.update', 'Mod kelulusan: ' + setting_('approval_mode'));
   return { settings: publicSettings_(), approved: approved };
+});
+
+action_('admin.logo.save', { admin: true, write: true }, function (d, ctx) {
+  var logo = String(d.logo || '');
+  if (logo) {
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(logo)) throw apiError_('VALIDATION', 'Format logo tidak sah. Gunakan fail PNG, JPG atau WebP.');
+    if (logo.length > LOGO_MAX) throw apiError_('VALIDATION', 'Saiz logo terlalu besar. Sila guna imej yang lebih kecil.');
+  }
+  setLogo_(logo);
+  audit_(ctx, 'settings.logo', logo ? 'Logo dikemas kini' : 'Logo dibuang');
+  return { logo: logo };
 });
 
 action_('admin.reports', { admin: true }, function (d) {

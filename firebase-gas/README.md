@@ -40,7 +40,7 @@ Hanya 3 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komp
    - *Who has access*: **Anyone**
 10. Klik **Deploy** dan salin **URL Web App** (berakhir dengan `/exec`). **Inilah alamat sistem anda**; kongsikan kepada guru.
 11. Buka URL tersebut, pilih **Pentadbir Sistem**, dan masukkan `ADMIN_IC`. Kemudian:
-    - **Tetapan Sistem:** tukar nama sekolah.
+    - **Tetapan Sistem:** tukar nama sekolah dan **muat naik logo sekolah**. Logo dikecilkan secara automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV.
     - **Daftar & Urus Guru:** masukkan nama guru.
     - **Urus Bilik Khas:** kemas kini senarai bilik.
 
