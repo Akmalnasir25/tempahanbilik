@@ -6,6 +6,30 @@ $times = ['open_time', 'close_time'];
 $ints = ['max_advance_days' => [0, 365], 'max_duration_hours' => [0, 24], 'max_recurring_weeks' => [1, 52], 'cancel_cutoff_hours' => [0, 168]];
 $bools = ['allow_weekend', 'allow_registration', 'public_display'];
 
+if (is_post() && in_array(input('action'), ['logo', 'logo_remove'], true)) {
+    if (input('action') === 'logo_remove') {
+        remove_logo();
+        audit('settings.logo', 'Logo dibuang');
+        flash('success', 'Logo sekolah dibuang.');
+    } else {
+        // The browser normally sends a pre-shrunk PNG/WebP as a data URL; a plain file upload is the fallback.
+        $binary = '';
+        if (preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', input('logo_data'), $m)) {
+            $binary = (string) base64_decode($m[2], true);
+        } elseif (($_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK && is_uploaded_file($_FILES['logo']['tmp_name'])) {
+            $binary = (string) file_get_contents($_FILES['logo']['tmp_name']);
+        }
+        $err = save_logo($binary);
+        if ($err) {
+            flash('danger', $err);
+        } else {
+            audit('settings.logo', 'Logo dikemas kini');
+            flash('success', 'Logo sekolah dikemas kini.');
+        }
+    }
+    redirect('admin/settings');
+}
+
 if (is_post()) {
     $errors = [];
     foreach ($text as $k) {
@@ -54,6 +78,30 @@ $pendingCount = (int) db()->query("SELECT COUNT(*) FROM bookings WHERE status = 
 render_header('Tetapan Sistem', 'admin/settings');
 page_title('Tetapan Sistem', 'Konfigurasi maklumat sekolah dan peraturan tempahan.');
 ?>
+<div class="card mb-4">
+    <div class="card-header"><h2 class="card-title"><i class="bi bi-image me-2"></i>Logo Sekolah</h2></div>
+    <div class="card-body">
+        <div class="logo-upload">
+            <div id="logoPreview"><?= brand_logo('xl') ?></div>
+            <div class="flex-grow-1">
+                <form method="post" enctype="multipart/form-data" id="logoForm" class="d-inline-flex gap-2 mb-2 me-1">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="logo">
+                    <input type="hidden" name="logo_data" id="logoData">
+                    <input type="file" name="logo" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden>
+                    <button type="button" class="btn btn-sm btn-primary" id="logoPick"><i class="bi bi-upload me-1"></i><?= logo_url() ? 'Tukar logo' : 'Muat naik logo' ?></button>
+                </form>
+                <?php if (logo_url()): ?>
+                    <form method="post" class="d-inline" data-confirm="Buang logo sekolah? Ikon lalai akan dipaparkan semula.">
+                        <?= csrf_field() ?><input type="hidden" name="action" value="logo_remove">
+                        <button class="btn btn-sm btn-light text-danger"><i class="bi bi-trash me-1"></i>Buang</button>
+                    </form>
+                <?php endif; ?>
+                <div class="form-text">PNG, JPG, WebP atau SVG. Logo dikecilkan secara automatik dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV. Latar lutsinar (PNG) paling cantik.</div>
+            </div>
+        </div>
+    </div>
+</div>
 <form method="post">
     <?= csrf_field() ?>
     <div class="card mb-4">
@@ -141,4 +189,4 @@ page_title('Tetapan Sistem', 'Konfigurasi maklumat sekolah dan peraturan tempaha
     </div>
     <div class="mt-4"><button class="btn btn-primary btn-lg px-5"><i class="bi bi-save me-1"></i>Simpan Tetapan</button></div>
 </form>
-<?php render_footer();
+<?php render_footer('<script>TB.logoUpload();</script>');

@@ -443,6 +443,70 @@
         $('#roomSearch').addEventListener('input', function (e) { term = e.target.value.trim().toLowerCase(); apply(); });
     };
 
+    /* ---------- School logo upload (admin settings) ---------- */
+    // Shrinks the image in the browser so even large phone photos upload quickly.
+    function resizeLogo(file) {
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onerror = function () { reject(new Error('Fail tidak dapat dibaca.')); };
+            reader.onload = function () {
+                var img = new Image();
+                img.onerror = function () { reject(new Error('Imej tidak sah atau tidak disokong.')); };
+                img.onload = function () {
+                    var encode = function (max) {
+                        var w = img.naturalWidth || max, h = img.naturalHeight || max;
+                        var scale = Math.min(1, max / Math.max(w, h));
+                        var c = document.createElement('canvas');
+                        c.width = Math.max(1, Math.round(w * scale));
+                        c.height = Math.max(1, Math.round(h * scale));
+                        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                        var png = c.toDataURL('image/png');
+                        if (png.length <= 150000) return png;
+                        var webp = c.toDataURL('image/webp', 0.9);
+                        return /^data:image\/webp/.test(webp) && webp.length < png.length ? webp : png;
+                    };
+                    var sizes = [256, 192, 128, 96];
+                    for (var i = 0; i < sizes.length; i++) {
+                        var out = encode(sizes[i]);
+                        if (out.length <= 350000) return resolve(out);
+                    }
+                    reject(new Error('Imej terlalu kompleks. Cuba logo yang lebih ringkas.'));
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    TB.logoUpload = function () {
+        var form = $('#logoForm'), file = $('#logoFile'), btn = $('#logoPick');
+        if (!form) return;
+        btn.addEventListener('click', function () { file.click(); });
+        file.addEventListener('change', function () {
+            var f = file.files[0];
+            if (!f) return;
+            if (!/^image\//.test(f.type)) { alert('Sila pilih fail imej.'); return; }
+            if (f.size > 5 * 1024 * 1024) { alert('Fail terlalu besar (maksimum 5 MB).'); return; }
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Memuat naik…';
+            resizeLogo(f).then(function (dataUrl) {
+                $('#logoData').value = dataUrl;
+                $('#logoPreview').innerHTML = '<span class="brand-logo has-img xl"><img src="' + dataUrl + '" alt=""></span>';
+                file.value = ''; // send the shrunk copy only
+                form.submit();
+            }, function (err) {
+                // Let the server try (it can resize with GD) if the browser could not.
+                if (f.type === 'image/svg+xml') {
+                    btn.disabled = false;
+                    btn.textContent = 'Muat naik logo';
+                    alert(err.message);
+                    return;
+                }
+                form.submit();
+            });
+        });
+    };
+
     /* ---------- Bulk select (admin bookings) ---------- */
     TB.bulkSelect = function () {
         var all = $('#checkAll'), count = $('#selCount');

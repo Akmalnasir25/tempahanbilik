@@ -55,7 +55,7 @@ $roomCount = (int) db()->query("SELECT COUNT(*) FROM rooms WHERE status = 'activ
     <section class="auth-hero">
         <div class="auth-hero-inner">
             <div class="d-flex align-items-center gap-3 mb-5">
-                <span class="brand-logo lg"><i class="bi bi-buildings"></i></span>
+                <?= brand_logo('lg') ?>
                 <div>
                     <div class="fw-bold fs-5"><?= e(setting('system_name')) ?></div>
                     <div class="opacity-75 small"><?= e(setting('school_name')) ?></div>
@@ -74,7 +74,7 @@ $roomCount = (int) db()->query("SELECT COUNT(*) FROM rooms WHERE status = 'activ
     <section class="auth-panel">
         <div class="auth-card">
             <div class="d-lg-none text-center mb-4">
-                <span class="brand-logo lg mx-auto mb-2"><i class="bi bi-buildings"></i></span>
+                <?= brand_logo('lg mx-auto mb-2') ?>
                 <div class="fw-bold"><?= e(setting('system_name')) ?></div>
             </div>
             <h2 class="h3 fw-bold mb-1">Selamat kembali 👋</h2>

@@ -398,3 +398,76 @@ function js(mixed $v): string
 {
     return (string) json_encode($v, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
 }
+
+/* ---------- School logo ----------
+ * Stored in the settings table (base64) and served by index.php?p=logo, so no
+ * uploaded file ever lands in a web-accessible folder. */
+
+const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const LOGO_MAX_SIDE = 256;
+
+function logo_url(): ?string
+{
+    $v = setting('logo_version');
+    return $v && setting('logo_data') ? url('logo', ['v' => $v]) : null;
+}
+
+function brand_logo(string $class = ''): string
+{
+    $u = logo_url();
+    return $u
+        ? '<span class="brand-logo has-img ' . e($class) . '"><img src="' . e($u) . '" alt="Logo sekolah"></span>'
+        : '<span class="brand-logo ' . e($class) . '"><i class="bi bi-buildings"></i></span>';
+}
+
+/**
+ * Validate an uploaded image, shrink it to LOGO_MAX_SIDE when GD is available,
+ * and store it. Returns an error message, or '' on success.
+ */
+function save_logo(string $binary): string
+{
+    $hasGd = function_exists('imagecreatefromstring');
+    if ($binary === '') {
+        return 'Sila pilih fail imej.';
+    }
+    if (strlen($binary) > ($hasGd ? 5 * 1024 * 1024 : 300 * 1024)) {
+        return $hasGd ? 'Fail terlalu besar (maksimum 5 MB).' : 'Fail terlalu besar (maksimum 300 KB).';
+    }
+    $info = @getimagesizefromstring($binary);
+    if (!$info || !in_array($info['mime'], LOGO_MIMES, true)) {
+        return 'Format tidak disokong. Gunakan fail PNG, JPG, WebP atau GIF.';
+    }
+    $mime = $info['mime'];
+    [$w, $h] = $info;
+    if ($w > LOGO_MAX_SIDE || $h > LOGO_MAX_SIDE) {
+        if (!$hasGd) {
+            if ($w > 1024 || $h > 1024) {
+                return 'Imej terlalu besar. Sila guna imej tidak melebihi 1024×1024 piksel.';
+            }
+        } elseif ($src = @imagecreatefromstring($binary)) {
+            $scale = LOGO_MAX_SIDE / max($w, $h);
+            $nw = max(1, (int) round($w * $scale));
+            $nh = max(1, (int) round($h * $scale));
+            $dst = imagecreatetruecolor($nw, $nh);
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            ob_start();
+            imagepng($dst, null, 9);
+            $binary = (string) ob_get_clean();
+            $mime = 'image/png';
+        }
+    }
+    save_setting('logo_data', base64_encode($binary));
+    save_setting('logo_mime', $mime);
+    save_setting('logo_version', substr(sha1($binary), 0, 12));
+    settings(true);
+    return '';
+}
+
+function remove_logo(): void
+{
+    db()->exec("DELETE FROM settings WHERE key IN ('logo_data', 'logo_mime', 'logo_version')");
+    settings(true);
+}
