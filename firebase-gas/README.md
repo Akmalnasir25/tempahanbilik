@@ -1,128 +1,115 @@
-# Sistem Tempahan Bilik Khas — Versi Firebase + Google Apps Script
+# Sistem Tempahan Bilik Khas — Versi Google Apps Script (+ Firebase pilihan)
 
-Versi ini tidak memerlukan pelayan PHP:
-
-| Bahagian | Teknologi | Kos |
-|---|---|---|
-| Laman web (frontend) | **Firebase Hosting** | Percuma (pelan Spark) |
-| Log masuk | **Firebase Authentication**: log masuk Google dengan akaun **DELIMa** | Percuma |
-| Backend & logik tempahan | **Google Apps Script** (Web App) | Percuma |
-| Pangkalan data | **Google Sheets** | Percuma |
+Versi ini tidak memerlukan pelayan atau hosting berbayar. Data disimpan dalam **Google Sheets**, dan logik sistem berjalan dalam **Google Apps Script (GAS)**.
 
 > Versi PHP asal masih ada di root repo dan tidak diubah.
 
-Ciri-cirinya sama dengan versi PHP: semakan pertembungan masa nyata, tempahan berulang, mod kelulusan (auto / manual / ikut bilik), jadual bulan/minggu/hari, grid kekosongan, penutupan & cuti, laporan, log audit, paparan TV, dan mod gelap. Ada juga beberapa tambahan:
+## Cara log masuk
 
-- Guru **log masuk dengan akaun DELIMa**, jadi tiada kata laluan baharu.
-- **Admin mendaftarkan nama & e-mel guru.** Hanya e-mel berdaftar boleh masuk. Guru boleh didaftarkan satu per satu atau diimport secara pukal dengan menampal senarai dari Excel.
-- Guru yang belum berdaftar boleh **memohon akses**, dan admin mengesahkannya. Ciri ini boleh dimatikan.
-- **Notifikasi e-mel** automatik apabila tempahan diluluskan atau ditolak (melalui Gmail).
-- Data boleh dilihat terus dalam Google Sheets.
+1. **Pentadbir mendaftarkan nama guru sahaja**, sama ada satu per satu atau diimport secara pukal.
+2. Guru buka sistem, **pilih nama mereka dari dropdown** (boleh taip untuk cari).
+3. **Kali pertama:** guru **mendaftarkan No. Kad Pengenalan sendiri** (12 digit, ditaip dua kali). No. KP ini menjadi kata laluan mereka.
+4. **Seterusnya:** pilih nama dan masukkan No. KP. Sengkang dibenarkan, contohnya `900101-10-1234`.
+5. Guru boleh menukar kata laluan kepada yang lain di **Profil Saya**.
+6. Jika guru lupa kata laluan, pentadbir klik **Set semula kata laluan**. Guru kemudian mendaftarkan No. KP semula pada log masuk seterusnya.
+
+Keselamatan: No. KP / kata laluan **tidak disimpan sebagai teks biasa**. Ia disimpan dalam bentuk cincang (*salted hash*) dalam Google Sheet. Akaun juga dikunci selama 15 minit selepas 5 cubaan yang salah.
 
 ---
 
-## Langkah 1 — Sediakan Google Sheets & Apps Script (backend)
+## Pilihan A (paling mudah) — Deploy terus dalam Google Apps Script
 
-1. Log masuk ke Google dengan akaun yang akan **memiliki data** (lihat nota ⚠️ di bawah), dan cipta **Google Sheet baharu**. Namakan contohnya "Data Tempahan Bilik Khas".
+Hanya 3 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komputer.
+
+1. Log masuk ke Google dan cipta **Google Sheet baharu**, contohnya "Data Tempahan Bilik Khas".
 2. Klik **Extensions → Apps Script**.
-3. Padam kandungan `Code.gs` yang ada, kemudian **salin seluruh kandungan** [`gas/Code.gs`](gas/Code.gs) ke dalamnya.
-4. Klik ⚙️ **Project Settings**, tandakan **"Show appsscript.json manifest file in editor"**, kemudian gantikan kandungan `appsscript.json` dengan [`gas/appsscript.json`](gas/appsscript.json).
-5. Di bahagian atas `Code.gs`, isi `CONFIG`:
+3. **`Code.gs`**: padam kandungan asal, kemudian tampal seluruh kandungan [`gas/Code.gs`](gas/Code.gs).
+4. **`Index.html`**: klik **＋ → HTML**, namakan fail **`Index`**, kemudian tampal kandungan [`gas/Index.html`](gas/Index.html).
+5. **`Display.html`**: ulang langkah yang sama dengan nama **`Display`** dan kandungan [`gas/Display.html`](gas/Display.html). Fail ini untuk paparan TV.
+6. (Disyorkan) Klik ⚙️ **Project Settings**, tandakan **"Show appsscript.json"**, kemudian tampal kandungan [`gas/appsscript.json`](gas/appsscript.json). Ini menetapkan zon waktu Malaysia.
+7. Di bahagian atas `Code.gs`, tukar **`ADMIN_IC`** kepada No. KP pentadbir:
    ```js
    var CONFIG = {
-     FIREBASE_API_KEY: 'AIza....',                   // dari Langkah 2
-     INITIAL_ADMINS: ['penyelaras.ict@moe-dl.edu.my'], // e-mel DELIMa pentadbir pertama
+     ADMIN_IC: '800101015555',      // No. KP pentadbir = kata laluan pentadbir
+     ADMIN_NAME: 'Pentadbir Sistem',
    };
    ```
-6. Pilih fungsi **`setup`** dalam menu atas dan klik **Run**. Benarkan akses apabila diminta. Helaian (Users, Rooms, Bookings, …) dan data contoh akan dicipta.
-7. Klik **Deploy → New deployment**, kemudian pilih jenis **Web app**:
+8. Pilih fungsi **`setup`** dalam menu atas dan klik **▶ Run**. Benarkan akses apabila diminta.
+9. Klik **Deploy → New deployment → ⚙️ Web app**:
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
-8. Klik **Deploy** dan **salin URL Web App** (berakhir dengan `/exec`).
+10. Klik **Deploy** dan salin **URL Web App** (berakhir dengan `/exec`). **Inilah alamat sistem anda**; kongsikan kepada guru.
+11. Buka URL tersebut, pilih **Pentadbir Sistem**, dan masukkan `ADMIN_IC`. Kemudian:
+    - **Tetapan Sistem:** tukar nama sekolah.
+    - **Daftar & Urus Guru:** masukkan nama guru.
+    - **Urus Bilik Khas:** kemas kini senarai bilik.
 
-> ⚠️ **Akaun DELIMa & pilihan "Anyone":** sesetengah domain DELIMa tidak membenarkan Web App dikongsi kepada "Anyone". Jika pilihan itu tiada, gunakan **akaun Gmail sekolah (bukan DELIMa)** untuk memiliki Sheet dan Apps Script ini. Guru masih log masuk dengan akaun DELIMa masing-masing, kerana log masuk dikendalikan oleh Firebase dan bukan oleh Apps Script.
+> 💡 Paparan TV untuk bilik guru: `URL-web-app?page=display`
+>
+> 💡 Jika pilihan "Anyone" tiada (sesetengah akaun DELIMa menyekatnya), gunakan **akaun Gmail biasa** untuk memiliki Sheet dan skrip ini.
 
-## Langkah 2 — Sediakan Firebase
+## Pilihan B — Firebase Hosting (untuk URL `nama.web.app`)
 
-1. Buka [console.firebase.google.com](https://console.firebase.google.com) dan pilih projek anda (atau cipta yang baharu).
-2. **Build → Authentication → Get started → Sign-in method → Google → Enable → Save.**
-3. **Project settings (⚙️) → General → Your apps → ikon `</>` (Web)**. Daftar aplikasi web, kemudian salin nilai `firebaseConfig`.
-4. Buka [`public/config.js`](public/config.js) dan isi:
+Frontend yang sama di-hos di Firebase, dan ia memanggil URL Web App GAS dari Pilihan A.
+
+1. Lengkapkan **Pilihan A langkah 1–10** dahulu. Fail `Index.html` dan `Display.html` tetap diperlukan untuk paparan TV, tetapi boleh ditinggalkan jika tidak mahu.
+2. Isi [`public/config.js`](public/config.js):
    ```js
-   window.APP_CONFIG = {
-     firebase: { apiKey: 'AIza…', authDomain: 'projek-anda.firebaseapp.com', projectId: 'projek-anda', appId: '1:…' },
-     gasUrl: 'https://script.google.com/macros/s/…/exec',   // URL dari Langkah 1
-   };
+   window.APP_CONFIG = { gasUrl: 'https://script.google.com/macros/s/…/exec' };
    ```
-5. Salin juga `apiKey` yang sama ke `CONFIG.FIREBASE_API_KEY` dalam Apps Script. Selepas itu, klik **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**.
-6. Dalam fail [`.firebaserc`](.firebaserc), tukar `ISI_PROJECT_ID` kepada ID projek Firebase anda.
+3. Dalam [`.firebaserc`](.firebaserc), tukar `ISI_PROJECT_ID` kepada ID projek Firebase anda.
+4. Deploy (perlukan [Node.js](https://nodejs.org)):
+   ```bash
+   npm install -g firebase-tools
+   firebase login
+   cd firebase-gas
+   firebase deploy --only hosting
+   ```
 
-## Langkah 3 — Deploy ke Firebase Hosting
+Firebase Authentication **tidak diperlukan**, kerana log masuk diuruskan oleh sistem sendiri.
 
-Anda perlukan [Node.js](https://nodejs.org) di komputer.
+---
 
-```bash
-npm install -g firebase-tools
-firebase login
-cd firebase-gas
-firebase deploy --only hosting
+## Import pukal nama guru
+Di **Daftar & Urus Guru → Import Pukal**, tampal satu guru setiap baris. Anda juga boleh salin terus dari Excel atau Google Sheets:
 ```
-
-Sistem kini boleh dibuka di `https://projek-anda.web.app`.
-
-> Jika anda menggunakan domain sendiri, contohnya `tempahan.sekolah.edu.my`, tambahkannya di **Hosting → Add custom domain**, dan di **Authentication → Settings → Authorized domains**.
-
-## Langkah 4 — Mula guna
-
-1. Buka URL sistem dan klik **Log masuk dengan Google** menggunakan e-mel dalam `INITIAL_ADMINS`. Anda akan masuk sebagai **Pentadbir**.
-2. Pergi ke **Tetapan Sistem** dan kemas kini nama sekolah. Tetapkan juga **URL sistem** (untuk pautan dalam e-mel) dan pilih mod kelulusan.
-3. Pergi ke **Daftar & Urus Guru** dan klik **Daftar Guru**, atau guna **Import Pukal**. Untuk import pukal, tampal senarai dalam format:
-   ```
-   Siti Aminah binti Ali, g-12345678@moe-dl.edu.my, Bahasa Melayu
-   Lim Wei Ming, g-87654321@moe-dl.edu.my, Matematik
-   ```
-4. Kemas kini senarai bilik di **Urus Bilik Khas**, dan waktu persekolahan di **Waktu Persekolahan**.
-5. Kongsikan URL sistem kepada guru. Mereka hanya perlu klik **Log masuk dengan Google**.
+Siti Aminah binti Ali, Bahasa Melayu
+Lim Wei Ming, Matematik, lim@contoh.com
+Rahman bin Yusof
+```
+Format: `Nama, Panitia (pilihan), E-mel (pilihan)`. E-mel hanya digunakan untuk notifikasi.
 
 ## Kemas kini sistem kemudian
-
-- **Ubah frontend** (fail dalam `public/`): jalankan `firebase deploy --only hosting` sekali lagi.
-- **Ubah `Code.gs`**: klik **Deploy → Manage deployments → ✏️ → New version**. URL Web App kekal sama.
+- **Ubah `Code.gs`:** klik **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. URL tidak berubah.
+- **Ubah fail dalam `public/`:** jalankan `node tools/build-gas.js` untuk menjana semula `gas/Index.html` dan `gas/Display.html`. Tampal semula fail tersebut dalam Apps Script, kemudian deploy *New version*. Untuk Pilihan B, jalankan juga `firebase deploy`.
 
 ## Sandaran data
-Semua data berada dalam Google Sheet tersebut. Anda boleh guna **File → Version history**, atau **File → Make a copy** untuk sandaran. **Jangan ubah nama helaian atau baris tajuk.**
+Semua data berada dalam Google Sheet. Gunakan **File → Version history** atau **File → Make a copy** untuk sandaran. **Jangan ubah nama helaian atau baris tajuk.**
 
 ## Masalah lazim
-
 | Masalah | Penyelesaian |
 |---|---|
-| "Konfigurasi belum lengkap" | Isi `public/config.js` dan deploy semula |
-| "Access blocked" semasa log masuk Google | Pentadbir DELIMa negeri/sekolah menyekat aplikasi pihak ketiga. Minta domain Firebase anda dibenarkan, atau hubungi pentadbir DELIMa |
-| "Sesi log masuk tamat" berulang kali | Pastikan `CONFIG.FIREBASE_API_KEY` sama dengan `apiKey` dalam `config.js`, dan anda telah deploy **New version** |
-| "Hanya akaun @moe-dl.edu.my dibenarkan" | Tukar atau kosongkan *Domain e-mel* di Tetapan Sistem |
 | "Helaian … tiada" | Jalankan fungsi `setup` dalam Apps Script |
+| Nama guru tiada dalam dropdown | Pastikan guru didaftarkan dan berstatus **Aktif** |
+| Guru lupa kata laluan | **Daftar & Urus Guru → ⋯ → Set semula kata laluan** |
+| "Terlalu banyak cubaan" | Tunggu 15 minit, atau pentadbir set semula kata laluan |
+| Perubahan kod tidak berkesan | Deploy **New version** (bukan hanya Save) |
 | Sistem agak perlahan (1–2 saat) | Ini normal untuk Apps Script |
 
 ## Ujian tempatan (untuk pembangun)
-`test/gas-mock-server.js` menjalankan `Code.gs` sebenar dalam Node, dengan tiruan Google Sheets dan perkhidmatan Apps Script. `test/e2e.js` pula menguji keseluruhan aliran dalam pelayar menggunakan Playwright.
-
 ```bash
-node test/gas-mock-server.js 8090 &
-node test/e2e.js
+node test/gas-mock-server.js 8090 &   # jalankan Code.gs sebenar dengan tiruan Google Sheets
+node test/e2e.js                      # ujian pelayar (Playwright), kedua-dua mod
 ```
 
 ## Struktur
 ```
 firebase-gas/
-  gas/Code.gs            Backend Apps Script (API, pengesahan token, logik tempahan)
+  gas/Code.gs            Backend: API, log masuk, logik tempahan
+  gas/Index.html         Aplikasi untuk Apps Script (dijana oleh tools/build-gas.js)
+  gas/Display.html       Paparan TV untuk Apps Script (dijana)
   gas/appsscript.json    Manifest Apps Script
-  public/                Laman yang di-deploy ke Firebase Hosting
-    index.html           Aplikasi (SPA)
-    display.html         Paparan TV jadual hari ini
-    config.js            Konfigurasi Firebase + URL Apps Script
-    assets/js/core.js    Log masuk, API, penghala, susun atur
-    assets/js/pages.js   Halaman guru
-    assets/js/admin.js   Halaman pentadbir
-  firebase.json, .firebaserc
+  public/                Sumber frontend + laman untuk Firebase Hosting
+  tools/build-gas.js     Jana gas/*.html daripada public/
   test/                  Pelayan tiruan & ujian pelayar
 ```

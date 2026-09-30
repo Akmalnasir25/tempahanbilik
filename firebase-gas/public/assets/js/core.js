@@ -2,7 +2,7 @@
 window.App = (function () {
     'use strict';
 
-    var S = { user: null, settings: {}, rooms: [], periods: [], meta: {}, fbUser: null, today: '', routes: {}, routeSeq: 0 };
+    var S = { user: null, settings: {}, rooms: [], periods: [], meta: {}, teachers: [], token: '', today: '', routes: {}, routeSeq: 0 };
 
     /* ------------------------------------------------------------------
      * Generic helpers
@@ -171,31 +171,52 @@ window.App = (function () {
     }
 
     /* ------------------------------------------------------------------
-     * API client (Google Apps Script web app)
+     * API client — google.script.run when served from Apps Script,
+     * otherwise fetch() to the Web App URL (e.g. from Firebase Hosting)
      * ------------------------------------------------------------------ */
-    function api(action, data, opts) {
-        opts = opts || {};
-        var tokenP = opts.public || !S.fbUser ? Promise.resolve('') : S.fbUser.getIdToken(!!opts.forceToken);
-        return tokenP.then(function (token) {
-            return fetch(window.APP_CONFIG.gasUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: action, data: data || {}, token: token || undefined }),
-                redirect: 'follow',
+    var TOKEN_KEY = 'tb-token';
+    function getToken() {
+        try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || S.token || ''; } catch (e) { return S.token || ''; }
+    }
+    function setToken(token, remember) {
+        S.token = token || '';
+        try {
+            localStorage.removeItem(TOKEN_KEY);
+            sessionStorage.removeItem(TOKEN_KEY);
+            if (token) (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+        } catch (e) { /* storage blocked: keep token in memory only */ }
+    }
+
+    function transport(payload) {
+        var gsr = window.google && google.script && google.script.run;
+        if (gsr) {
+            return new Promise(function (resolve, reject) {
+                gsr.withSuccessHandler(function (s) { resolve(JSON.parse(s)); })
+                    .withFailureHandler(function (e) { reject(new Error('Ralat pelayan: ' + (e && e.message || e))); })
+                    .api(JSON.stringify(payload));
             });
+        }
+        return fetch(window.APP_CONFIG.gasUrl, {
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow',
         }).then(function (r) {
             if (!r.ok) throw new Error('Pelayan tidak dapat dihubungi (' + r.status + ').');
             return r.json();
-        }, function () {
-            throw new Error('Tidak dapat menghubungi pelayan. Semak sambungan Internet anda.');
-        }).then(function (j) {
-            if (!j.ok && j.code === 'AUTH' && !opts.forceToken && S.fbUser) {
-                return api(action, data, Object.assign({}, opts, { forceToken: true }));
-            }
+        }, function () { throw new Error('Tidak dapat menghubungi pelayan. Semak sambungan Internet anda.'); });
+    }
+
+    function api(action, data, opts) {
+        opts = opts || {};
+        return transport({ action: action, data: data || {}, token: opts.public ? undefined : getToken() || undefined }).then(function (j) {
             if (j.meta) setMeta(j.meta);
             if (!j.ok) {
                 var e = new Error(j.error || 'Ralat');
                 e.code = j.code; e.info = j.info;
+                if (j.code === 'AUTH' && !opts.public && S.user) {
+                    setToken('');
+                    S.user = null;
+                    toast(j.error, 'warning');
+                    showLogin();
+                }
                 throw e;
             }
             return j.data;
@@ -203,24 +224,22 @@ window.App = (function () {
     }
 
     /* ------------------------------------------------------------------
-     * Auth screens
+     * Auth screens — pilih nama, log masuk dengan No. KP
      * ------------------------------------------------------------------ */
-    var GOOGLE_SVG = '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 38.2 44 33 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
-
     function authLayout(inner) {
         var s = S.settings;
         return '<div class="auth-wrap"><section class="auth-hero"><div class="auth-hero-inner">' +
             '<div class="d-flex align-items-center gap-3 mb-5"><span class="brand-logo lg"><i class="bi bi-buildings"></i></span><div>' +
             '<div class="fw-bold fs-5">' + esc(s.system_name || 'Sistem Tempahan Bilik Khas') + '</div><div class="opacity-75 small">' + esc(s.school_name || '') + '</div></div></div>' +
             '<h1 class="display-6 fw-bold mb-3">Tempah bilik khas sekolah dengan mudah, pantas &amp; tanpa pertembungan.</h1>' +
-            '<p class="lead opacity-75 mb-5">Log masuk dengan akaun DELIMa anda. Semak kekosongan secara langsung dan pantau jadual mingguan atau bulanan di satu tempat.</p>' +
+            '<p class="lead opacity-75 mb-5">Pilih nama anda, log masuk, semak kekosongan secara langsung dan pantau jadual mingguan atau bulanan di satu tempat.</p>' +
             '<div class="row g-3 auth-features">' +
-            '<div class="col-sm-6"><div class="feat"><i class="bi bi-google"></i><div><strong>Log masuk DELIMa</strong><span>Tiada kata laluan baharu untuk diingat</span></div></div></div>' +
+            '<div class="col-sm-6"><div class="feat"><i class="bi bi-person-check"></i><div><strong>Log masuk mudah</strong><span>Pilih nama &amp; masukkan No. KP</span></div></div></div>' +
             '<div class="col-sm-6"><div class="feat"><i class="bi bi-lightning-charge"></i><div><strong>Semakan masa nyata</strong><span>Tempahan bertindih disekat secara automatik</span></div></div></div>' +
             '<div class="col-sm-6"><div class="feat"><i class="bi bi-calendar-week"></i><div><strong>Jadual interaktif</strong><span>Paparan harian, mingguan &amp; bulanan</span></div></div></div>' +
             '<div class="col-sm-6"><div class="feat"><i class="bi bi-arrow-repeat"></i><div><strong>Tempahan berulang</strong><span>Tempah slot yang sama setiap minggu</span></div></div></div>' +
             '</div></div></section><section class="auth-panel"><div class="auth-card">' +
-            '<div class="d-lg-none text-center mb-4"><span class="brand-logo lg mx-auto mb-2"><i class="bi bi-buildings"></i></span><div class="fw-bold">' + esc(s.system_name || '') + '</div></div>' +
+            '<div class="d-lg-none text-center mb-4"><span class="brand-logo lg mx-auto mb-2"><i class="bi bi-buildings"></i></span><div class="fw-bold">' + esc(s.system_name || '') + '</div><div class="small text-body-secondary">' + esc(s.school_name || '') + '</div></div>' +
             inner + '</div></section></div>';
     }
 
@@ -230,90 +249,161 @@ window.App = (function () {
         var a = $('#auth');
         a.hidden = false;
         a.innerHTML = authLayout(html);
-        $$('[data-logout]', a).forEach(function (b) { b.onclick = logout; });
         return a;
-    }
-
-    function showLogin(errorMsg) {
-        var domain = S.settings.email_domain;
-        var a = showAuth(
-            '<h2 class="h3 fw-bold mb-1">Selamat datang 👋</h2>' +
-            '<p class="text-body-secondary mb-4">Log masuk menggunakan akaun Google ' + (domain ? '<strong>@' + esc(domain) + '</strong> (DELIMa)' : 'anda') + '.</p>' +
-            (errorMsg ? '<div class="alert alert-danger py-2 small">' + esc(errorMsg) + '</div>' : '') +
-            '<button class="btn-google" id="googleBtn">' + GOOGLE_SVG + '<span>Log masuk dengan Google</span></button>' +
-            '<div class="auth-note mt-4"><i class="bi bi-info-circle me-1 text-primary"></i>Hanya guru yang telah didaftarkan oleh pentadbir boleh menggunakan sistem ini.' +
-            (S.settings.allow_registration === '1' ? ' Jika belum berdaftar, anda boleh memohon akses selepas log masuk.' : '') + '</div>');
-        $('#googleBtn', a).onclick = function () {
-            var btn = this;
-            busy(btn, true);
-            var provider = new firebase.auth.GoogleAuthProvider();
-            var params = { prompt: 'select_account' };
-            if (domain) params.hd = domain;
-            provider.setCustomParameters(params);
-            firebase.auth().signInWithPopup(provider).catch(function (err) {
-                busy(btn, false);
-                if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) {
-                    return firebase.auth().signInWithRedirect(provider);
-                }
-                if (err && err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-                    toast('Log masuk gagal: ' + (err.message || err.code), 'danger');
-                }
-            });
-        };
     }
 
     function showMessage(icon, title, text, extra) {
         showAuth('<div class="text-center"><div class="confirm-icon mb-3" style="background:rgba(59,130,246,.1);color:#1d4ed8"><i class="bi bi-' + icon + '"></i></div>' +
-            '<h2 class="h4 fw-bold">' + esc(title) + '</h2><p class="text-body-secondary">' + text + '</p>' + (extra || '') +
-            '<button class="btn btn-light mt-3" data-logout><i class="bi bi-box-arrow-left me-1"></i>Log masuk dengan akaun lain</button></div>');
+            '<h2 class="h4 fw-bold">' + esc(title) + '</h2><p class="text-body-secondary">' + text + '</p>' + (extra || '') + '</div>');
     }
 
-    function showRegister(user) {
-        if (S.settings.allow_registration !== '1') {
-            return showMessage('person-x', 'Akaun belum didaftarkan', 'E-mel <strong>' + esc(user.email) + '</strong> belum didaftarkan dalam sistem. Sila hubungi pentadbir sistem untuk didaftarkan.');
+    var icInput = function (name, label, autofocus) {
+        return '<div class="mb-3"><label class="form-label fw-semibold">' + label + '</label><div class="input-icon"><i class="bi bi-person-vcard"></i>' +
+            '<input class="form-control form-control-lg" name="' + name + '" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="cth. 900101101234" required' + (autofocus ? ' autofocus' : '') + '>' +
+            '<button type="button" class="btn-reveal" data-reveal aria-label="Papar"><i class="bi bi-eye"></i></button></div></div>';
+    };
+
+    function showLogin() {
+        var teachers = S.teachers || [];
+        var a = showAuth(
+            '<h2 class="h3 fw-bold mb-1">Selamat datang 👋</h2><p class="text-body-secondary mb-4">Pilih nama anda untuk log masuk.</p>' +
+            '<div id="loginAlert"></div>' +
+            '<form id="loginForm" autocomplete="off">' +
+            '<div class="mb-3"><label class="form-label fw-semibold">Nama guru</label>' +
+            '<div class="input-icon mb-2"><i class="bi bi-search"></i><input class="form-control" id="nameFilter" placeholder="Taip untuk cari nama…"></div>' +
+            '<select class="form-select form-select-lg" id="userSelect" required><option value="">— Pilih nama anda —</option>' +
+            teachers.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + (t.department ? ' (' + esc(t.department) + ')' : '') + '</option>'; }).join('') +
+            '</select></div><div id="loginStep"></div></form>' +
+            (S.settings.allow_registration === '1' ? '<p class="text-center text-body-secondary mt-4 mb-0 small">Nama anda tiada dalam senarai? <a href="#" id="showRegister" class="fw-semibold">Daftar di sini</a></p>' : '') +
+            '<p class="text-center xsmall text-body-tertiary mt-3 mb-0">Lupa kata laluan? Hubungi pentadbir sistem untuk menetapkan semula.</p>');
+        var sel = $('#userSelect', a), step = $('#loginStep', a);
+        try { var last = localStorage.getItem('tb-last-user'); if (last && teachers.some(function (t) { return String(t.id) === last; })) sel.value = last; } catch (e) { /* ignore */ }
+
+        $('#nameFilter', a).oninput = function () {
+            var q = this.value.trim().toLowerCase(), first = null;
+            Array.prototype.forEach.call(sel.options, function (o, i) {
+                if (!i) return;
+                var show = !q || o.text.toLowerCase().indexOf(q) !== -1;
+                o.hidden = !show;
+                if (show && !first) first = o;
+            });
+            if (q && first) { sel.value = first.value; renderStep(); }
+        };
+        sel.onchange = renderStep;
+
+        function renderStep() {
+            var t = teachers.filter(function (x) { return String(x.id) === sel.value; })[0];
+            $('#loginAlert', a).innerHTML = '';
+            if (!t) { step.innerHTML = ''; return; }
+            if (t.activated) {
+                step.innerHTML = icInput('password', 'No. Kad Pengenalan / kata laluan', true) +
+                    '<div class="form-check mb-4"><input class="form-check-input" type="checkbox" id="remember" checked><label class="form-check-label small" for="remember">Ingat saya pada peranti ini</label></div>' +
+                    '<button class="btn btn-primary btn-lg w-100 fw-semibold">Log Masuk <i class="bi bi-arrow-right ms-1"></i></button>';
+                $('[name=password]', step).removeAttribute('inputmode');
+                $('[name=password]', step).type = 'password';
+            } else {
+                step.innerHTML = '<div class="auth-note mb-3"><i class="bi bi-stars me-1 text-primary"></i><strong>Log masuk kali pertama.</strong> Daftarkan No. Kad Pengenalan anda (12 digit) — ia akan menjadi kata laluan anda.</div>' +
+                    icInput('ic', 'No. Kad Pengenalan', true) + icInput('ic_confirm', 'Sahkan No. Kad Pengenalan') +
+                    '<div class="form-check mb-4"><input class="form-check-input" type="checkbox" id="remember" checked><label class="form-check-label small" for="remember">Ingat saya pada peranti ini</label></div>' +
+                    '<button class="btn btn-primary btn-lg w-100 fw-semibold">Daftar &amp; Log Masuk <i class="bi bi-arrow-right ms-1"></i></button>';
+                $$('[name=ic], [name=ic_confirm]', step).forEach(function (i) { i.type = 'password'; });
+            }
+            $$('[data-reveal]', step).forEach(function (b) {
+                b.onclick = function () {
+                    var inp = b.parentNode.querySelector('input');
+                    var show = inp.type === 'password';
+                    inp.type = show ? 'text' : 'password';
+                    b.innerHTML = '<i class="bi bi-eye' + (show ? '-slash' : '') + '"></i>';
+                };
+            });
+            var f = step.querySelector('input');
+            if (f) setTimeout(function () { f.focus(); }, 50);
         }
-        var a = showAuth('<h2 class="h3 fw-bold mb-1">Mohon akses</h2>' +
-            '<p class="text-body-secondary mb-4">E-mel <strong>' + esc(user.email) + '</strong> belum didaftarkan. Isi maklumat di bawah; pentadbir akan mengesahkan akaun anda.</p>' +
-            '<form id="regForm"><div class="mb-3"><label class="form-label fw-semibold">Nama penuh <span class="text-danger">*</span></label><input class="form-control" name="name" required value="' + esc(user.name || '') + '"></div>' +
-            '<div class="row g-3 mb-4"><div class="col-sm-6"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="phone" placeholder="012-3456789"></div>' +
-            '<div class="col-sm-6"><label class="form-label fw-semibold">Panitia / Unit</label><input class="form-control" name="department" placeholder="cth. Sains"></div></div>' +
-            '<button class="btn btn-primary btn-lg w-100 fw-semibold">Hantar permohonan</button></form>' +
-            '<button class="btn btn-link w-100 mt-2" data-logout>Guna akaun lain</button>');
+
+        $('#loginForm', a).onsubmit = function (e) {
+            e.preventDefault();
+            var t = teachers.filter(function (x) { return String(x.id) === sel.value; })[0];
+            if (!t) return;
+            var btn = $('button.btn-primary', step), remember = $('#remember', step).checked;
+            var req = t.activated
+                ? api('login', { user_id: t.id, password: $('[name=password]', step).value, remember: remember }, { public: true })
+                : api('activate', { user_id: t.id, ic: $('[name=ic]', step).value, ic_confirm: $('[name=ic_confirm]', step).value, remember: remember }, { public: true });
+            busy(btn, true);
+            req.then(function (r) {
+                try { localStorage.setItem('tb-last-user', String(t.id)); } catch (err) { /* ignore */ }
+                setToken(r.token, remember);
+                startSession();
+            }).catch(function (err) {
+                busy(btn, false);
+                if (err.code === 'NOT_ACTIVATED') { t.activated = false; renderStep(); }
+                $('#loginAlert', a).innerHTML = '<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i>' + esc(err.message) + '</div>';
+            });
+        };
+        var reg = $('#showRegister', a);
+        if (reg) reg.onclick = function (e) { e.preventDefault(); showRegister(); };
+        renderStep();
+    }
+
+    function showRegister() {
+        var a = showAuth('<h2 class="h3 fw-bold mb-1">Daftar akaun guru</h2>' +
+            '<p class="text-body-secondary mb-4">Isi maklumat di bawah. Pentadbir akan mengesahkan akaun anda sebelum anda boleh log masuk.</p><div id="regAlert"></div>' +
+            '<form id="regForm" autocomplete="off"><div class="mb-3"><label class="form-label fw-semibold">Nama penuh <span class="text-danger">*</span></label><input class="form-control" name="name" required></div>' +
+            icInput('ic', 'No. Kad Pengenalan (akan menjadi kata laluan) <span class="text-danger">*</span>') +
+            '<div class="row g-3 mb-4"><div class="col-sm-6"><label class="form-label fw-semibold">Panitia / Unit</label><input class="form-control" name="department" placeholder="cth. Sains"></div>' +
+            '<div class="col-sm-6"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="phone"></div>' +
+            '<div class="col-12"><label class="form-label fw-semibold">E-mel <span class="text-body-secondary fw-normal">(pilihan, untuk notifikasi)</span></label><input type="email" class="form-control" name="email"></div></div>' +
+            '<button class="btn btn-primary btn-lg w-100 fw-semibold">Hantar pendaftaran</button></form>' +
+            '<button class="btn btn-link w-100 mt-2" id="backLogin">Kembali ke log masuk</button>');
+        $('[name=ic]', a).type = 'password';
+        $('[data-reveal]', a).onclick = function () { var i = $('[name=ic]', a); i.type = i.type === 'password' ? 'text' : 'password'; };
+        $('#backLogin', a).onclick = showLogin;
         $('#regForm', a).onsubmit = function (e) {
             e.preventDefault();
-            var btn = $('button', this);
+            var btn = $('button.btn-primary', this);
             busy(btn, true);
-            api('requestAccess', formData(this)).then(function () { showPending(user.email); }).catch(function (err) { busy(btn, false); showError(err); });
+            api('register', formData(this), { public: true }).then(function () {
+                showMessage('hourglass-split', 'Pendaftaran dihantar', 'Akaun anda akan muncul dalam senarai nama selepas disahkan oleh pentadbir. Selepas itu, log masuk dengan No. KP yang anda daftarkan.',
+                    '<button class="btn btn-primary mt-2" id="backLogin2">Kembali ke log masuk</button>');
+                $('#backLogin2').onclick = showLogin;
+            }).catch(function (err) {
+                busy(btn, false);
+                $('#regAlert', a).innerHTML = '<div class="alert alert-danger py-2 small">' + esc(err.message) + '</div>';
+            });
         };
     }
 
-    function showPending(email) {
-        showMessage('hourglass-split', 'Menunggu pengesahan', 'Permohonan untuk <strong>' + esc(email) + '</strong> telah dihantar. Anda boleh log masuk selepas pentadbir mengesahkan akaun anda.',
-            '<button class="btn btn-primary mt-2 me-2" onclick="location.reload()"><i class="bi bi-arrow-clockwise me-1"></i>Semak semula</button>');
-    }
-
     function logout() {
-        firebase.auth().signOut().then(function () { location.hash = ''; location.reload(); });
+        api('logout', {}).catch(function () { /* ignore */ }).then(function () {
+            setToken('');
+            S.user = null;
+            history.replaceState(null, '', location.pathname + location.search);
+            return loadConfig();
+        }).then(showLogin, showLogin);
     }
 
     /* ------------------------------------------------------------------
      * Session bootstrap
      * ------------------------------------------------------------------ */
+    function loadConfig() {
+        return api('config', {}, { public: true }).then(function (c) {
+            S.teachers = c.teachers;
+            S.settings = Object.assign(S.settings, c);
+            applySettings();
+        });
+    }
+
     function startSession() {
         return api('session').then(function (d) {
             S.settings = d.settings || S.settings;
             applySettings();
-            if (d.user.status === 'unregistered') return showRegister(d.user);
-            if (d.user.status === 'pending') return showPending(d.user.email);
             S.user = d.user;
             S.rooms = d.rooms;
             S.periods = d.periods;
             S.today = d.today;
             showShell();
         }).catch(function (err) {
-            if (err.code === 'DOMAIN' || err.code === 'INACTIVE') return showMessage('shield-exclamation', 'Akses ditolak', esc(err.message));
-            if (err.code === 'AUTH') return firebase.auth().signOut().then(function () { showLogin(err.message); });
-            showMessage('wifi-off', 'Tidak dapat memuatkan sistem', esc(err.message), '<button class="btn btn-primary mt-2 me-2" onclick="location.reload()">Cuba lagi</button>');
+            if (err.code === 'AUTH') { setToken(''); return loadConfig().then(showLogin); }
+            showMessage('wifi-off', 'Tidak dapat memuatkan sistem', esc(err.message), '<button class="btn btn-primary mt-2" onclick="location.reload()">Cuba lagi</button>');
         });
     }
 
@@ -383,8 +473,9 @@ window.App = (function () {
         $('#todayLabel').textContent = fmtDate(todayIso(), true);
         $('#year').textContent = new Date().getFullYear();
         $$('[data-logout]').forEach(function (b) { b.onclick = logout; });
+        $('#displayLink').href = displayUrl();
         renderNav();
-        window.addEventListener('hashchange', route);
+        if (!S.routerBound) { window.addEventListener('hashchange', route); S.routerBound = true; }
         route();
     }
 
@@ -416,6 +507,7 @@ window.App = (function () {
     }
 
     function route() {
+        if (!S.user) return;
         var r = parseHash();
         var def = S.routes[r.page];
         if (!def) { go('dashboard'); return; }
@@ -478,6 +570,21 @@ window.App = (function () {
         },
     };
 
+    var VENDOR = (window.APP_CONFIG || {}).cdn ? {
+        chart: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
+        fullcalendar: 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js',
+        fullcalendarLocale: 'https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.15/locales/ms.global.min.js',
+    } : {
+        chart: 'assets/vendor/chartjs/chart.umd.min.js',
+        fullcalendar: 'assets/vendor/fullcalendar/index.global.min.js',
+        fullcalendarLocale: 'assets/vendor/fullcalendar/locale-ms.global.min.js',
+    };
+
+    function displayUrl() {
+        var cfg = window.APP_CONFIG || {};
+        return cfg.cdn && cfg.gasUrl ? cfg.gasUrl + '?page=display' : 'display.html';
+    }
+
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
             if (document.querySelector('script[src="' + src + '"]')) return resolve();
@@ -508,21 +615,16 @@ window.App = (function () {
 
     function start() {
         var cfg = window.APP_CONFIG || {};
-        if (!cfg.gasUrl || /ISI_/.test(cfg.gasUrl) || /ISI_/.test((cfg.firebase || {}).apiKey || '')) {
-            $('#boot').hidden = true;
-            showMessage('gear', 'Konfigurasi belum lengkap', 'Sila isi <code>config.js</code> dengan konfigurasi Firebase dan URL Web App Google Apps Script. Rujuk <code>firebase-gas/README.md</code>.');
+        var inGas = !!(window.google && google.script && google.script.run);
+        if (!inGas && (!cfg.gasUrl || /ISI_/.test(cfg.gasUrl))) {
+            showMessage('gear', 'Konfigurasi belum lengkap', 'Sila isi <code>config.js</code> dengan URL Web App Google Apps Script. Rujuk <code>firebase-gas/README.md</code>.');
             return;
         }
         wireGlobal();
-        firebase.initializeApp(cfg.firebase);
-        // Public settings for the login page (school name, e-mail domain)
-        var cfgP = api('config', {}, { public: true }).then(function (c) { S.settings = Object.assign(S.settings, c); applySettings(); }).catch(function () { /* offline: login still works */ });
-        firebase.auth().onAuthStateChanged(function (u) {
-            S.fbUser = u;
-            cfgP.then(function () {
-                if (!u) return showLogin();
-                return startSession();
-            });
+        loadConfig().then(function () {
+            return getToken() ? startSession() : showLogin();
+        }).catch(function (err) {
+            showMessage('wifi-off', 'Tidak dapat menghubungi pelayan', esc(err.message), '<button class="btn btn-primary mt-2" onclick="location.reload()">Cuba lagi</button>');
         });
     }
 
@@ -533,6 +635,6 @@ window.App = (function () {
         statusBadge: statusBadge, roomStatusBadge: roomStatusBadge, roomNeedsApproval: roomNeedsApproval, room: room, dot: dot, empty: empty,
         pageTitle: pageTitle, link: link, go: go, formData: formData, busy: busy, csvDownload: csvDownload, pager: pager,
         toast: toast, confirm: confirmBox, showError: showError, api: api, route: addRoute, reload: route, refreshSession: refreshSession,
-        charts: charts, loadScript: loadScript, start: start,
+        charts: charts, loadScript: loadScript, vendor: VENDOR, displayUrl: displayUrl, start: start,
     };
 })();

@@ -22,10 +22,14 @@
 (function () {
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
     var pad = function (n) { return String(n).padStart(2, '0'); };
+    function call(payload) {
+        var gsr = window.google && google.script && google.script.run;
+        if (gsr) return new Promise(function (ok, fail) { gsr.withSuccessHandler(function (x) { ok(JSON.parse(x)); }).withFailureHandler(fail).api(JSON.stringify(payload)); });
+        return fetch(APP_CONFIG.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(function (r) { return r.json(); });
+    }
     function tick() { var d = new Date(); document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
     function load() {
-        fetch(APP_CONFIG.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'display' }) })
-            .then(function (r) { return r.json(); })
+        call({ action: 'display' })
             .then(function (j) {
                 if (!j.ok) throw new Error(j.error);
                 var d = j.data, now = pad(new Date().getHours()) + ':' + pad(new Date().getMinutes());

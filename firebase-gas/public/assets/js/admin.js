@@ -139,48 +139,49 @@
     } });
 
     /* ==================================================================
-     * Users — register teachers (DELIMa e-mails)
+     * Users — admin registers teacher names
      * ================================================================== */
     A.route('admin/users', { title: 'Daftar & Urus Guru', admin: true, render: function (ctx) {
         return A.api('admin.users.list').then(function (users) {
             if (!ctx.alive()) return;
             var p = ctx.params, status = p.status || '', q = (p.q || '').toLowerCase();
-            var domain = S.settings.email_domain;
             var form = p.edit ? users.filter(function (u) { return u.id === +p.edit; })[0] : p.new ? { id: 0, name: '', email: '', phone: '', department: '', role: 'guru' } : null;
             var counts = { '': users.length, active: 0, pending: 0, inactive: 0 };
             users.forEach(function (u) { counts[u.status]++; });
             var list = users.filter(function (u) { return (!status || u.status === status) && (!q || (u.name + ' ' + u.email + ' ' + u.department).toLowerCase().indexOf(q) !== -1); });
-            var h = A.pageTitle('Daftar & Urus Guru', 'Daftarkan e-mel DELIMa guru supaya mereka boleh log masuk dan membuat tempahan.',
+            var h = A.pageTitle('Daftar & Urus Guru', 'Daftarkan nama guru. Guru akan memilih nama mereka di halaman log masuk dan mendaftarkan No. KP sendiri sebagai kata laluan.',
                 '<button class="btn btn-light" data-bs-toggle="collapse" data-bs-target="#importBox"><i class="bi bi-upload me-1"></i>Import Pukal</button><a href="#/admin/users?new=1" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Daftar Guru</a>');
             h += '<div class="collapse mb-4" id="importBox"><div class="card"><div class="card-header"><h2 class="card-title">Import Pukal Guru</h2></div><div class="card-body"><form id="importForm">' +
-                '<label class="form-label small">Satu guru setiap baris: <code>Nama, e-mel DELIMa, Panitia (pilihan)</code>. Anda juga boleh salin terus dari Excel / Google Sheets (3 lajur).</label>' +
-                '<textarea name="text" class="form-control font-monospace" rows="6" placeholder="Siti Aminah binti Ali, g-12345678@' + esc(domain || 'moe-dl.edu.my') + ', Bahasa Melayu&#10;Lim Wei Ming, g-87654321@' + esc(domain || 'moe-dl.edu.my') + ', Matematik"></textarea>' +
+                '<label class="form-label small">Satu guru setiap baris: <code>Nama, Panitia (pilihan), E-mel (pilihan)</code>. Anda juga boleh salin terus dari Excel / Google Sheets.</label>' +
+                '<textarea name="text" class="form-control font-monospace" rows="6" placeholder="Siti Aminah binti Ali, Bahasa Melayu&#10;Lim Wei Ming, Matematik&#10;Rahman bin Yusof"></textarea>' +
                 '<button class="btn btn-primary mt-3">Import</button></form></div></div></div>';
             if (form) {
                 h += '<div class="card mb-4 border-primary-subtle"><div class="card-header d-flex justify-content-between align-items-center"><h2 class="card-title">' + (form.id ? 'Kemas Kini Maklumat Guru' : 'Daftar Guru Baharu') + '</h2><a href="#/admin/users" class="btn-close"></a></div><div class="card-body">' +
                     '<form id="userForm"><input type="hidden" name="id" value="' + form.id + '"><div class="row g-3">' +
                     '<div class="col-md-4"><label class="form-label fw-semibold">Nama penuh <span class="text-danger">*</span></label><input class="form-control" name="name" value="' + esc(form.name) + '" required></div>' +
-                    '<div class="col-md-4"><label class="form-label fw-semibold">E-mel DELIMa <span class="text-danger">*</span></label><input type="email" class="form-control" name="email" value="' + esc(form.email) + '" required placeholder="nama@' + esc(domain || 'moe-dl.edu.my') + '"></div>' +
+                    '<div class="col-md-4"><label class="form-label fw-semibold">Panitia / Unit</label><input class="form-control" name="department" value="' + esc(form.department) + '"></div>' +
                     '<div class="col-md-4"><label class="form-label fw-semibold">Peranan</label><select name="role" class="form-select">' + opt('guru', 'Guru', form.role) + opt('admin', 'Pentadbir', form.role) + '</select></div>' +
                     '<div class="col-md-4"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="phone" value="' + esc(form.phone) + '"></div>' +
-                    '<div class="col-md-4"><label class="form-label fw-semibold">Panitia / Unit</label><input class="form-control" name="department" value="' + esc(form.department) + '"></div></div>' +
-                    '<div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Guru log masuk dengan butang "Log masuk dengan Google" menggunakan e-mel ini. Tiada kata laluan perlu ditetapkan.</div>' +
+                    '<div class="col-md-4"><label class="form-label fw-semibold">E-mel <span class="fw-normal text-body-secondary">(pilihan, untuk notifikasi)</span></label><input type="email" class="form-control" name="email" value="' + esc(form.email) + '"></div></div>' +
+                    '<div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Tiada kata laluan perlu ditetapkan. Kali pertama log masuk, guru memilih nama ini dan mendaftarkan No. Kad Pengenalan sendiri sebagai kata laluan.</div>' +
                     '<div class="mt-3 d-flex gap-2"><button class="btn btn-primary px-4">Simpan</button><a href="#/admin/users" class="btn btn-light">Batal</a></div></form></div></div>';
             }
             var tabs = { '': 'Semua', active: 'Aktif', pending: 'Menunggu Pengesahan', inactive: 'Tidak Aktif' };
             h += '<div class="card"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><ul class="nav nav-pills nav-pills-soft">' +
                 Object.keys(tabs).map(function (k) { return '<li class="nav-item"><a class="nav-link' + (status === k ? ' active' : '') + '" href="' + A.link('admin/users', { status: k }) + '">' + tabs[k] + ' <span class="badge rounded-pill">' + counts[k] + '</span></a></li>'; }).join('') +
                 '</ul><form id="userSearch"><div class="input-icon"><i class="bi bi-search"></i><input class="form-control form-control-sm" name="q" value="' + esc(p.q || '') + '" placeholder="Cari nama / e-mel…"></div></form></div>' +
-                (list.length ? '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Guru</th><th>Panitia / Unit</th><th>Peranan</th><th class="text-center">Tempahan</th><th>Log masuk terakhir</th><th>Status</th><th class="text-end">Tindakan</th></tr></thead><tbody>' +
+                (list.length ? '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Guru</th><th>Panitia / Unit</th><th>Peranan</th><th class="text-center">Tempahan</th><th>Kata laluan</th><th>Log masuk terakhir</th><th>Status</th><th class="text-end">Tindakan</th></tr></thead><tbody>' +
                     list.map(function (u) {
                         var me = u.id === S.user.id;
                         var st = { active: '<span class="badge badge-soft-success">Aktif</span>', pending: '<span class="badge badge-soft-warning">Menunggu</span>', inactive: '<span class="badge badge-soft-secondary">Tidak aktif</span>' }[u.status];
-                        return '<tr><td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm">' + esc(A.initials(u.name)) + '</span><div><div class="fw-semibold">' + esc(u.name) + (me ? ' <span class="xsmall text-body-secondary">(anda)</span>' : '') + '</div><div class="xsmall text-body-secondary">' + esc(u.email) + '</div></div></div></td>' +
+                        return '<tr><td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm">' + esc(A.initials(u.name)) + '</span><div><div class="fw-semibold">' + esc(u.name) + (me ? ' <span class="xsmall text-body-secondary">(anda)</span>' : '') + '</div><div class="xsmall text-body-secondary">' + esc(u.email || '') + '</div></div></div></td>' +
                             '<td class="small">' + esc(u.department || '-') + '</td><td>' + (u.role === 'admin' ? '<span class="badge badge-soft-primary">Pentadbir</span>' : '<span class="badge badge-soft-secondary">Guru</span>') + '</td>' +
-                            '<td class="text-center"><a href="' + A.link('admin/bookings', { user_id: u.id }) + '">' + u.bookings + '</a></td><td class="small">' + (u.last_login_at ? A.fmtDateTime(u.last_login_at) : '<span class="text-body-tertiary">Belum pernah</span>') + '</td><td>' + st + '</td>' +
+                            '<td class="text-center"><a href="' + A.link('admin/bookings', { user_id: u.id }) + '">' + u.bookings + '</a></td>' +
+                            '<td>' + (u.activated ? '<span class="badge badge-soft-success"><i class="bi bi-key me-1"></i>Sudah daftar</span>' : '<span class="badge badge-soft-secondary">Belum daftar</span>') + '</td><td class="small">' + (u.last_login_at ? A.fmtDateTime(u.last_login_at) : '<span class="text-body-tertiary">Belum pernah</span>') + '</td><td>' + st + '</td>' +
                             '<td class="text-end text-nowrap">' + (u.status === 'pending' ? '<button class="btn btn-sm btn-success" data-status="active" data-id="' + u.id + '"><i class="bi bi-check-lg me-1"></i>Sahkan</button> ' : '') +
                             '<div class="dropdown d-inline"><button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end shadow">' +
                             '<li><a class="dropdown-item" href="' + A.link('admin/users', { edit: u.id }) + '"><i class="bi bi-pencil me-2"></i>Kemas kini</a></li>' +
+                            (u.activated && !me ? '<li><button class="dropdown-item" data-reset="' + u.id + '" data-name="' + esc(u.name) + '"><i class="bi bi-key me-2"></i>Set semula kata laluan</button></li>' : '') +
                             (me ? '' : (u.status === 'active' ? '<li><button class="dropdown-item" data-status="inactive" data-id="' + u.id + '"><i class="bi bi-person-slash me-2"></i>Nyahaktifkan</button></li>'
                                 : u.status === 'inactive' ? '<li><button class="dropdown-item" data-status="active" data-id="' + u.id + '"><i class="bi bi-person-check me-2"></i>Aktifkan</button></li>' : '') +
                                 (!u.bookings ? '<li><hr class="dropdown-divider"></li><li><button class="dropdown-item text-danger" data-delete="' + u.id + '" data-name="' + esc(u.name) + '"><i class="bi bi-trash me-2"></i>Padam</button></li>' : '')) +
@@ -194,7 +195,7 @@
                     var btn = $('button', this);
                     A.busy(btn, true);
                     A.api('admin.users.save', A.formData(this)).then(function (u) {
-                        A.toast((form.id ? 'Maklumat ' : 'Guru ') + u.name + (form.id ? ' dikemas kini.' : ' berjaya didaftarkan. Guru kini boleh log masuk dengan e-mel ' + u.email + '.'));
+                        A.toast((form.id ? 'Maklumat ' : 'Guru ') + u.name + (form.id ? ' dikemas kini.' : ' berjaya didaftarkan. Nama ini kini tersedia di halaman log masuk.'));
                         A.go('admin/users');
                     }).catch(function (err) { A.busy(btn, false); A.showError(err); });
                 };
@@ -204,7 +205,7 @@
                 var btn = $('button', this);
                 A.busy(btn, true);
                 A.api('admin.users.import', { text: this.text.value }).then(function (r) {
-                    A.toast(r.created + ' guru didaftarkan.' + (r.skipped.length ? ' Dilangkau (tidak sah / sudah wujud): ' + r.skipped.slice(0, 10).join(', ') : ''), r.created ? 'success' : 'warning');
+                    A.toast(r.created + ' guru didaftarkan.' + (r.skipped.length ? ' Dilangkau: ' + r.skipped.slice(0, 10).join(', ') : ''), r.created ? 'success' : 'warning');
                     A.reload();
                 }).catch(function (err) { A.busy(btn, false); A.showError(err); });
             };
@@ -212,6 +213,13 @@
             $$('[data-status]', ctx.view).forEach(function (btn) {
                 btn.onclick = function () {
                     A.api('admin.users.setStatus', { id: +btn.dataset.id, status: btn.dataset.status }).then(function () { A.toast('Status akaun dikemas kini.'); A.reload(); }).catch(A.showError);
+                };
+            });
+            $$('[data-reset]', ctx.view).forEach(function (btn) {
+                btn.onclick = function () {
+                    A.confirm('Set semula kata laluan ' + btn.dataset.name + '? Guru perlu mendaftarkan No. KP sebagai kata laluan semula pada log masuk seterusnya.', { btnClass: 'btn-primary' }).then(function (ok) {
+                        if (ok) A.api('admin.users.resetPassword', { id: +btn.dataset.reset }).then(function () { A.toast('Kata laluan ' + btn.dataset.name + ' telah ditetapkan semula.'); A.reload(); }).catch(A.showError);
+                    });
                 };
             });
             $$('[data-delete]', ctx.view).forEach(function (btn) {
@@ -304,7 +312,7 @@
      * ================================================================== */
     A.route('admin/reports', { title: 'Laporan & Analitik', admin: true, render: function (ctx) {
         var p = ctx.params;
-        return Promise.all([A.api('admin.reports', { from: p.from, to: p.to }), A.loadScript('assets/vendor/chartjs/chart.umd.min.js')]).then(function (res) {
+        return Promise.all([A.api('admin.reports', { from: p.from, to: p.to }), A.loadScript(A.vendor.chart)]).then(function (res) {
             if (!ctx.alive()) return;
             var d = res[0], s = d.summary, t = A.todayIso();
             var monthStart = t.slice(0, 8) + '01';
@@ -373,15 +381,14 @@
                 '<div class="col-6"><label class="form-label fw-semibold">Waktu tutup</label><input type="time" class="form-control" name="close_time" value="' + esc(s.close_time) + '"></div>' +
                 num('max_advance_days', 'Tempah awal maksimum', 'hari') + num('max_duration_hours', 'Tempoh maksimum', 'jam') + num('max_recurring_weeks', 'Ulangan maksimum', 'minggu') + num('cancel_cutoff_hours', 'Had batal / pinda', 'jam sebelum') +
                 '</div><div class="form-text">Had 0 = tiada had. Peraturan ini tidak dikenakan ke atas pentadbir.</div></div></div></div>' +
-                '<div class="col-12"><div class="card"><div class="card-header"><h2 class="card-title"><i class="bi bi-person-lock me-2"></i>Log Masuk &amp; Akses</h2></div><div class="card-body"><div class="row g-4">' +
-                '<div class="col-md-6"><label class="form-label fw-semibold">Domain e-mel yang dibenarkan</label><div class="input-group"><span class="input-group-text">@</span><input class="form-control" name="email_domain" value="' + esc(s.email_domain) + '" placeholder="moe-dl.edu.my"></div><div class="form-text">Hanya akaun Google dengan domain ini boleh log masuk (DELIMa: <code>moe-dl.edu.my</code>). Kosongkan untuk membenarkan semua akaun Google.</div></div>' +
-                '<div class="col-md-6"><label class="form-label fw-semibold">URL sistem</label><input class="form-control" name="app_url" value="' + esc(s.app_url) + '" placeholder="https://nama-projek.web.app/"><div class="form-text">Digunakan untuk pautan dalam e-mel notifikasi.</div></div>' +
-                '</div></div></div></div>' +
+                '<div class="col-12"><div class="card"><div class="card-header"><h2 class="card-title"><i class="bi bi-link-45deg me-2"></i>URL Sistem</h2></div><div class="card-body">' +
+                '<input class="form-control" name="app_url" value="' + esc(s.app_url) + '" placeholder="https://script.google.com/macros/s/…/exec atau https://nama-projek.web.app/"><div class="form-text">Digunakan untuk pautan dalam e-mel notifikasi.</div>' +
+                '</div></div></div>' +
                 '<div class="col-12"><div class="card"><div class="card-header"><h2 class="card-title"><i class="bi bi-toggles me-2"></i>Pilihan</h2></div><div class="card-body"><div class="row g-4">' +
-                sw('allow_registration', 'Benarkan guru mohon akses', 'Guru yang belum didaftar boleh menghantar permohonan; pentadbir perlu mengesahkannya.') +
-                sw('email_notifications', 'Notifikasi e-mel', 'Hantar e-mel (melalui Gmail sekolah) apabila tempahan diluluskan, ditolak atau menunggu kelulusan.') +
+                sw('allow_registration', 'Benarkan guru mendaftar sendiri', 'Guru yang namanya tiada dalam senarai boleh mendaftar; pentadbir perlu mengesahkannya.') +
+                sw('email_notifications', 'Notifikasi e-mel', 'Hantar e-mel (melalui Gmail pemilik skrip) kepada guru yang ada e-mel apabila tempahan diluluskan, ditolak atau menunggu kelulusan.') +
                 sw('allow_weekend', 'Tempahan hujung minggu', 'Benarkan guru menempah pada hari Sabtu &amp; Ahad.') +
-                sw('public_display', 'Paparan skrin awam', 'Benarkan <a href="display.html" target="_blank">paparan jadual hari ini</a> dibuka tanpa log masuk (TV di bilik guru / lobi).') +
+                sw('public_display', 'Paparan skrin awam', 'Benarkan <a href="' + A.displayUrl() + '" target="_blank">paparan jadual hari ini</a> dibuka tanpa log masuk (TV di bilik guru / lobi).') +
                 '</div></div></div></div></div><div class="mt-4"><button class="btn btn-primary btn-lg px-5"><i class="bi bi-save me-1"></i>Simpan Tetapan</button></div></form>';
             $('#settingsForm').onsubmit = function (e) {
                 e.preventDefault();
@@ -408,6 +415,7 @@
             var labels = {
                 'auth.register': ['Permohonan akses', 'person-plus', 'info'], 'booking.create': ['Tempahan baharu', 'plus-circle', 'primary'], 'booking.update': ['Tempahan dipinda', 'pencil', 'primary'],
                 'booking.approved': ['Diluluskan', 'check-circle', 'success'], 'booking.rejected': ['Ditolak', 'x-circle', 'danger'], 'booking.cancelled': ['Dibatalkan', 'slash-circle', 'secondary'],
+                'auth.login': ['Log masuk', 'box-arrow-in-right', 'secondary'], 'auth.activate': ['Daftar kata laluan', 'key', 'info'], 'auth.fail': ['Log masuk gagal', 'exclamation-triangle', 'warning'],
             };
             ctx.view.innerHTML = A.pageTitle('Log Audit', 'Rekod semua aktiviti penting dalam sistem.') +
                 '<div class="card"><div class="card-header d-flex justify-content-between align-items-center"><span class="small text-body-secondary">' + d.total + ' rekod</span>' +
@@ -415,7 +423,7 @@
                 '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Masa</th><th>Pengguna</th><th>Aktiviti</th><th>Butiran</th></tr></thead><tbody>' +
                 d.rows.map(function (l) {
                     var x = labels[l.action] || [l.action, 'dot', 'secondary'];
-                    return '<tr><td class="small text-nowrap">' + A.fmtDateTime(l.created_at) + '</td><td class="small">' + esc(l.user_email || 'Sistem') + '</td><td class="small text-nowrap"><i class="bi bi-' + x[1] + ' text-' + x[2] + ' me-1"></i>' + esc(x[0]) + '</td><td class="small">' + esc(l.details) + '</td></tr>';
+                    return '<tr><td class="small text-nowrap">' + A.fmtDateTime(l.created_at) + '</td><td class="small">' + esc(l.user_name || 'Sistem') + '</td><td class="small text-nowrap"><i class="bi bi-' + x[1] + ' text-' + x[2] + ' me-1"></i>' + esc(x[0]) + '</td><td class="small">' + esc(l.details) + '</td></tr>';
                 }).join('') + '</tbody></table></div>' + (d.pages > 1 ? '<div class="card-footer">' + A.pager(d.page, d.pages, function (n) { A.go('admin/audit', { page: n, q: p.q }); }) + '</div>' : '') + '</div>';
             $('#auditSearch').onsubmit = function (e) { e.preventDefault(); A.go('admin/audit', { q: this.q.value }); };
         });

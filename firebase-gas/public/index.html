@@ -30,7 +30,7 @@
         </a>
         <nav class="side-nav" id="sideNav"></nav>
         <div class="sidebar-footer">
-            <a href="display.html" target="_blank" class="nav-link"><i class="bi bi-tv"></i><span>Paparan Skrin Hari Ini</span></a>
+            <a href="display.html" target="_blank" class="nav-link" id="displayLink"><i class="bi bi-tv"></i><span>Paparan Skrin Hari Ini</span></a>
         </div>
     </aside>
     <div class="sidebar-backdrop" data-toggle-sidebar></div>
@@ -67,7 +67,7 @@
         <main class="content" id="view"></main>
         <footer class="app-footer">
             <span>&copy; <span id="year"></span> <span data-setting="school_name"></span></span>
-            <span class="text-body-tertiary"><span data-setting="system_name"></span> · Firebase + Google Apps Script</span>
+            <span class="text-body-tertiary" data-setting="system_name"></span>
         </footer>
     </div>
 </div>
@@ -92,8 +92,6 @@
 <div class="toast-stack" id="toasts"></div>
 
 <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="config.js?v=2"></script>
 <script src="assets/js/core.js?v=2"></script>
 <script src="assets/js/pages.js?v=2"></script>

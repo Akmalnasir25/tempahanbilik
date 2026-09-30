@@ -1,11 +1,11 @@
 /*
  * Local test server: runs the real gas/Code.gs inside Node with in-memory mocks of
- * SpreadsheetApp, CacheService, LockService, UrlFetchApp (Firebase token lookup), etc.
- * It also serves public/ so the whole SPA can be exercised in a browser.
+ * SpreadsheetApp, CacheService, LockService, MailApp, etc.
+ * It serves:
+ *   /            public/ (the Firebase Hosting build, talking to POST /gas)
+ *   /gas-app     gas/Index.html as Apps Script would serve it (google.script.run shim)
  *
  *   node test/gas-mock-server.js [port]
- *
- * Tokens are faked as "mock:<email>" (see test/mock-firebase.js).
  */
 const http = require('http');
 const fs = require('fs');
@@ -77,7 +77,7 @@ const context = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss },
     PropertiesService: { getScriptProperties: () => ({ getProperty: () => null }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-    CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, v) }) },
+    CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, v), remove: (k) => cache.delete(k) }) },
     Utilities: {
         formatDate,
         getUuid: () => crypto.randomUUID(),
@@ -85,24 +85,12 @@ const context = {
         computeDigest: (alg, s) => Array.from(crypto.createHash(alg).update(String(s)).digest()),
         base64EncodeWebSafe: (bytes) => Buffer.from(bytes.map((b) => (b + 256) % 256)).toString('base64url'),
     },
-    UrlFetchApp: {
-        fetch(url, opts) {
-            const token = JSON.parse(opts.payload).idToken;
-            const m = /^mock:(.+@.+)$/.exec(token);
-            if (!/accounts:lookup/.test(url) || !m) return { getResponseCode: () => 400, getContentText: () => '{}' };
-            const email = m[1];
-            return {
-                getResponseCode: () => 200,
-                getContentText: () => JSON.stringify({ users: [{ email, emailVerified: true, displayName: email.split('@')[0].replace(/[._]/g, ' '), providerUserInfo: [{ providerId: 'google.com' }] }] }),
-            };
-        },
-    },
     MailApp: { sendEmail: (o) => mails.push(o) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (s) => ({ content: s, setMimeType() { return this; } }) },
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'gas/Code.gs'), 'utf8'), context, { filename: 'Code.gs' });
-vm.runInContext("CONFIG.FIREBASE_API_KEY = 'test'; CONFIG.INITIAL_ADMINS = ['admin@moe-dl.edu.my'];", context);
+
 console.log(vm.runInContext('setup()', context));
 
 /* ---------------- HTTP ---------------- */
@@ -119,6 +107,20 @@ http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
             res.end(out.content);
         });
+        return;
+    }
+    if (url.pathname === '/gas-app') {
+        // Render the Apps Script template the way HtmlService would, plus a google.script.run shim.
+        const file = url.searchParams.get('page') === 'display' ? 'Display.html' : 'Index.html';
+        const scriptUrl = 'http://' + req.headers.host + '/gas-app';
+        let html = fs.readFileSync(path.join(ROOT, 'gas', file), 'utf8').replace(/<\?!=\s*JSON\.stringify\(scriptUrl\)\s*\?>/g, JSON.stringify(scriptUrl));
+        const shim = '<script>window.google={script:{run:(function(){function R(s,f){this.s=s;this.f=f;}' +
+            'R.prototype.withSuccessHandler=function(fn){return new R(fn,this.f);};R.prototype.withFailureHandler=function(fn){return new R(this.s,fn);};' +
+            'R.prototype.api=function(p){var s=this.s,f=this.f;fetch("/gas",{method:"POST",body:p}).then(function(r){return r.text();}).then(function(t){s&&s(t);},function(e){f&&f(e);});};' +
+            'return new R();})()}};</script>';
+        html = html.replace('<head>', '<head>' + shim);
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
         return;
     }
     if (url.pathname === '/__mails') {

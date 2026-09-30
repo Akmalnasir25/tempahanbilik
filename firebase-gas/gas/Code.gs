@@ -2,31 +2,38 @@
  * Sistem Tempahan Bilik Khas — backend Google Apps Script
  *
  * Data disimpan dalam Google Sheets (helaian yang "memiliki" skrip ini).
- * Frontend (Firebase Hosting) memanggil skrip ini melalui URL Web App.
- * Pengguna log masuk dengan akaun Google (DELIMa) melalui Firebase Authentication;
- * setiap permintaan membawa Firebase ID token yang disahkan di sini.
+ * Sistem boleh dibuka terus melalui URL Web App ini (Index.html), atau
+ * dari Firebase Hosting yang memanggil URL yang sama.
+ *
+ * Log masuk: pentadbir mendaftar nama guru sahaja. Guru pilih nama → masukkan
+ * No. Kad Pengenalan sebagai kata laluan. Kali pertama, guru mendaftarkan
+ * No. KP mereka sendiri sebagai kata laluan.
  */
 
 var CONFIG = {
-  // Firebase Console → Project settings → General → Web API Key
-  FIREBASE_API_KEY: 'ISI_WEB_API_KEY_FIREBASE_ANDA',
-  // E-mel pentadbir pertama. Akaun ini dicipta secara automatik semasa log masuk kali pertama.
-  INITIAL_ADMINS: ['admin.sekolah@moe-dl.edu.my'],
+  // Kata laluan (No. KP, 12 digit) pentadbir pertama. Selepas setup(), pilih
+  // "Pentadbir Sistem" di halaman log masuk dan masukkan No. KP ini.
+  ADMIN_IC: '000000000000',
+  ADMIN_NAME: 'Pentadbir Sistem',
 };
 
 var TZ = 'Asia/Kuala_Lumpur';
 var BLOCKING = { pending: true, approved: true };
+var SESSION_DAYS_REMEMBER = 30;
+var SESSION_HOURS = 12;
+var MAX_FAILS = 5;
 
 var SCHEMA = {
   Settings: ['key', 'value'],
-  Users: ['id', 'email', 'name', 'phone', 'department', 'role', 'status', 'created_at', 'last_login_at'],
+  Users: ['id', 'name', 'password_hash', 'email', 'phone', 'department', 'role', 'status', 'created_at', 'last_login_at'],
+  Sessions: ['token_hash', 'user_id', 'expires_at', 'created_at'],
   Rooms: ['id', 'code', 'name', 'category', 'location', 'capacity', 'facilities', 'description', 'pic_name', 'color', 'requires_approval', 'status', 'created_at'],
   Periods: ['id', 'label', 'start_time', 'end_time', 'is_break'],
   Closures: ['id', 'room_id', 'start_date', 'end_date', 'reason', 'created_by', 'created_at'],
   Bookings: ['id', 'ref_no', 'user_id', 'room_id', 'date', 'start_time', 'end_time', 'purpose', 'class_name', 'subject', 'attendees', 'notes',
     'status', 'series_id', 'admin_remark', 'reviewed_by', 'reviewed_at', 'created_at', 'updated_at'],
   Notifications: ['id', 'user_id', 'title', 'message', 'link', 'is_read', 'created_at'],
-  Audit: ['id', 'user_email', 'action', 'details', 'created_at'],
+  Audit: ['id', 'user_name', 'action', 'details', 'created_at'],
 };
 var NUMERIC = { id: 1, user_id: 1, room_id: 1, capacity: 1, attendees: 1, requires_approval: 1, is_break: 1, is_read: 1, reviewed_by: 1, created_by: 1 };
 
@@ -42,7 +49,6 @@ var DEFAULT_SETTINGS = {
   max_recurring_weeks: '16',
   allow_weekend: '0',
   allow_registration: '1',
-  email_domain: 'moe-dl.edu.my',
   public_display: '1',
   cancel_cutoff_hours: '0',
   approval_mode: 'auto',
@@ -94,52 +100,80 @@ function setup() {
       ['Waktu 12', '13:20', '13:50', 0], ['Petang 1', '14:30', '15:30', 0], ['Petang 2', '15:30', '16:30', 0], ['Petang 3', '16:30', '17:30', 0],
     ].forEach(function (p) { T('Periods').insert({ label: p[0], start_time: p[1], end_time: p[2], is_break: p[3] }); });
   }
-  CONFIG.INITIAL_ADMINS.forEach(function (email) {
-    email = String(email).toLowerCase().trim();
-    if (email && !findBy_('Users', 'email', email)) {
-      T('Users').insert({ email: email, name: 'Pentadbir Sistem', role: 'admin', status: 'active', created_at: nowStamp_() });
-    }
-  });
-  return 'Setup selesai.';
+  if (!T('Users').rows().some(function (u) { return u.role === 'admin'; })) {
+    var ic = normIc_(CONFIG.ADMIN_IC);
+    T('Users').insert({ name: CONFIG.ADMIN_NAME, password_hash: hashSecret_(ic), role: 'admin', status: 'active', created_at: nowStamp_() });
+  }
+  return 'Setup selesai. Log masuk sebagai "' + CONFIG.ADMIN_NAME + '" menggunakan No. KP dalam CONFIG.ADMIN_IC.';
 }
 
 /* =====================================================================
- * HTTP entry points
+ * Entry points
+ *  - doGet  : papar aplikasi (Index.html) atau paparan TV (?page=display)
+ *  - doPost : API JSON untuk frontend di Firebase Hosting
+ *  - api    : API yang sama untuk google.script.run (apabila dibuka terus dari GAS)
  * ===================================================================== */
-function doGet() {
-  return json_({ ok: true, data: { service: 'tempahan-bilik', time: nowStamp_() } });
+function doGet(e) {
+  var page = e && e.parameter && e.parameter.page;
+  var file = page === 'display' ? 'Display' : 'Index';
+  var t;
+  try {
+    t = HtmlService.createTemplateFromFile(file);
+  } catch (err) {
+    return json_({ ok: true, data: { service: 'tempahan-bilik', note: 'Fail ' + file + '.html tiada; hanya API tersedia.' } });
+  }
+  t.scriptUrl = ScriptApp.getService().getUrl();
+  var name = '';
+  try { name = setting_('system_name'); } catch (err2) { name = DEFAULT_SETTINGS.system_name; }
+  return t.evaluate()
+    .setTitle(page === 'display' ? 'Jadual Bilik Khas Hari Ini' : name)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function doPost(e) {
-  var req = {};
+  var req;
   try {
     req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
   } catch (err) {
     return json_({ ok: false, code: 'BAD_REQUEST', error: 'Permintaan tidak sah.' });
   }
+  return json_(handle_(req));
+}
+
+function api(reqJson) {
+  var req;
+  try {
+    req = JSON.parse(reqJson || '{}');
+  } catch (err) {
+    return JSON.stringify({ ok: false, code: 'BAD_REQUEST', error: 'Permintaan tidak sah.' });
+  }
+  return JSON.stringify(handle_(req));
+}
+
+function handle_(req) {
   var action = String(req.action || '');
   var handler = ACTIONS[action];
-  if (!handler) return json_({ ok: false, code: 'NOT_FOUND', error: 'Tindakan tidak dikenali: ' + action });
-
+  if (!handler) return { ok: false, code: 'NOT_FOUND', error: 'Tindakan tidak dikenali: ' + action };
   var lock = null;
   try {
     if (handler.write) {
       lock = LockService.getScriptLock();
       lock.waitLock(25000);
     }
-    var ctx = { req: req, user: null };
+    var ctx = { req: req, user: null, token: req.token || '' };
     if (handler.auth !== false) {
-      ctx.user = currentUser_(req.token, handler.allowUnregistered);
+      ctx.user = sessionUser_(req.token);
       if (handler.admin && ctx.user.role !== 'admin') throw apiError_('FORBIDDEN', 'Hanya pentadbir boleh melakukan tindakan ini.');
     }
     var data = handler.fn(req.data || {}, ctx);
     var out = { ok: true, data: data };
     if (ctx.user && ctx.user.id) out.meta = meta_(ctx.user);
-    return json_(out);
+    return out;
   } catch (err) {
-    if (err && err.apiCode) return json_({ ok: false, code: err.apiCode, error: err.message, info: err.info || null });
+    if (err && err.apiCode) return { ok: false, code: err.apiCode, error: err.message, info: err.info || null };
     console.error(err && err.stack || err);
-    return json_({ ok: false, code: 'SERVER', error: 'Ralat pelayan: ' + (err && err.message || err) });
+    return { ok: false, code: 'SERVER', error: 'Ralat pelayan: ' + (err && err.message || err) };
   } finally {
     if (lock) lock.releaseLock();
   }
@@ -157,51 +191,89 @@ function apiError_(code, message, info) {
 }
 
 /* =====================================================================
- * Auth — verify Firebase ID token, then look up the registered teacher
+ * Auth — nama + kata laluan, sesi berasaskan token
  * ===================================================================== */
-function verifyToken_(token) {
-  if (!token) throw apiError_('AUTH', 'Sila log masuk.');
-  var cache = CacheService.getScriptCache();
-  var key = 'tok_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(token)));
-  var cached = cache.get(key);
-  if (cached) return JSON.parse(cached);
+function hex_(bytes) {
+  return bytes.map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('');
+}
+function sha_(s) { return hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(s))); }
 
-  var res = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(CONFIG.FIREBASE_API_KEY), {
-    method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: String(token) }), muteHttpExceptions: true,
-  });
-  if (res.getResponseCode() !== 200) throw apiError_('AUTH', 'Sesi log masuk tamat. Sila log masuk semula.');
-  var users = JSON.parse(res.getContentText()).users || [];
-  var u = users[0];
-  if (!u || !u.email || !u.emailVerified) throw apiError_('AUTH', 'Akaun Google tidak sah.');
-  var viaGoogle = (u.providerUserInfo || []).some(function (p) { return p.providerId === 'google.com'; });
-  if (!viaGoogle) throw apiError_('AUTH', 'Sila log masuk menggunakan akaun Google (DELIMa).');
-  var info = { email: String(u.email).toLowerCase(), name: u.displayName || '', photo: u.photoUrl || '' };
-  cache.put(key, JSON.stringify(info), 1800);
-  return info;
+/** Salted, iterated SHA-256. Stored as "salt$hash". */
+function hashSecret_(secret, salt) {
+  salt = salt || Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+  var h = salt;
+  for (var i = 0; i < 300; i++) h = sha_(h + ':' + salt + ':' + secret);
+  return salt + '$' + h;
+}
+function checkSecret_(secret, stored) {
+  if (!stored || String(stored).indexOf('$') === -1) return false;
+  var salt = String(stored).split('$')[0];
+  var a = hashSecret_(secret, salt), b = String(stored);
+  if (a.length !== b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+function normIc_(ic) { return String(ic || '').replace(/\D/g, ''); }
+function validIc_(ic) { return /^\d{12}$/.test(ic); }
+function checkPassword_(pw) {
+  pw = String(pw || '');
+  if (pw.length < 6) throw apiError_('VALIDATION', 'Kata laluan mestilah sekurang-kurangnya 6 aksara.');
+  return pw;
+}
+/** Login secret: an IC number is compared digits-only so "900101-10-1234" == "900101101234". */
+function loginSecret_(pw) {
+  var digits = normIc_(pw);
+  return /^[\d\s-]+$/.test(String(pw || '')) && digits ? digits : String(pw || '');
 }
 
-function currentUser_(token, allowUnregistered) {
-  var g = verifyToken_(token);
-  var isInitialAdmin = CONFIG.INITIAL_ADMINS.map(function (x) { return String(x).toLowerCase(); }).indexOf(g.email) !== -1;
-  var domain = String(setting_('email_domain') || '').replace(/^@/, '').toLowerCase();
-  if (domain && !isInitialAdmin && g.email.slice(-(domain.length + 1)) !== '@' + domain) {
-    throw apiError_('DOMAIN', 'Hanya akaun @' + domain + ' dibenarkan. Anda log masuk sebagai ' + g.email + '.', { email: g.email });
+function throttle_(userId) {
+  var n = Number(CacheService.getScriptCache().get('fail_' + userId) || 0);
+  if (n >= MAX_FAILS) throw apiError_('LOCKED', 'Terlalu banyak cubaan. Sila cuba semula selepas 15 minit atau hubungi pentadbir.');
+}
+function recordFail_(userId) {
+  var c = CacheService.getScriptCache();
+  c.put('fail_' + userId, String(Number(c.get('fail_' + userId) || 0) + 1), 900);
+}
+
+function createSession_(user, remember) {
+  var token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+  var ms = remember ? SESSION_DAYS_REMEMBER * 86400000 : SESSION_HOURS * 3600000;
+  var expires = Utilities.formatDate(new Date(Date.now() + ms), TZ, 'yyyy-MM-dd HH:mm:ss');
+  var now = nowStamp_();
+  // Remove this user's expired sessions while we are here.
+  var old = T('Sessions').rows().filter(function (s) { return s.expires_at < now; }).sort(function (a, b) { return b._row - a._row; });
+  old.slice(0, 50).forEach(function (s) { T('Sessions').sheet.deleteRow(s._row); });
+  if (old.length) T('Sessions')._rows = null;
+  T('Sessions').insert({ token_hash: sha_(token), user_id: user.id, expires_at: expires, created_at: now });
+  CacheService.getScriptCache().remove('fail_' + user.id);
+  T('Users').update(user, { last_login_at: now });
+  return token;
+}
+
+function sessionUser_(token) {
+  if (!token) throw apiError_('AUTH', 'Sila log masuk.');
+  var th = sha_(token);
+  var cache = CacheService.getScriptCache();
+  var uid = cache.get('ses_' + th);
+  if (!uid) {
+    var s = findBy_('Sessions', 'token_hash', th);
+    if (!s || s.expires_at < nowStamp_()) throw apiError_('AUTH', 'Sesi tamat. Sila log masuk semula.');
+    uid = String(s.user_id);
+    cache.put('ses_' + th, uid, 600);
   }
-  var user = findBy_('Users', 'email', g.email);
-  if (!user && isInitialAdmin) {
-    user = T('Users').insert({ email: g.email, name: g.name || 'Pentadbir Sistem', role: 'admin', status: 'active', created_at: nowStamp_() });
+  var user = T('Users').find(uid);
+  // A password reset clears password_hash, which must end every existing session at once.
+  if (!user || user.status !== 'active' || !user.password_hash) {
+    cache.remove('ses_' + th);
+    throw apiError_('AUTH', 'Akaun tidak aktif. Sila hubungi pentadbir.');
   }
-  if (!user) {
-    if (allowUnregistered) return { id: 0, email: g.email, name: g.name, status: 'unregistered', role: '' };
-    throw apiError_('NOT_REGISTERED', 'E-mel ' + g.email + ' belum didaftarkan dalam sistem.', { email: g.email, name: g.name, allowRegistration: setting_('allow_registration') === '1' });
-  }
-  if (user.status === 'pending') {
-    if (allowUnregistered) return user;
-    throw apiError_('PENDING', 'Permohonan akaun anda sedang menunggu pengesahan pentadbir.', { email: g.email });
-  }
-  if (user.status !== 'active') throw apiError_('INACTIVE', 'Akaun anda telah dinyahaktifkan. Sila hubungi pentadbir.', { email: g.email });
-  user.photo = g.photo;
   return user;
+}
+
+function userOut_(u) {
+  return { id: u.id, name: u.name, email: u.email, phone: u.phone, department: u.department, role: u.role, status: u.status,
+    activated: !!u.password_hash, created_at: u.created_at, last_login_at: u.last_login_at };
 }
 
 function meta_(user) {
@@ -380,7 +452,7 @@ function fmtDate_(d, withDay, short) {
  * Audit & notifications
  * ===================================================================== */
 function audit_(ctx, action, details) {
-  T('Audit').insert({ user_email: ctx && ctx.user ? ctx.user.email : '', action: action, details: details || '', created_at: nowStamp_() });
+  T('Audit').insert({ user_name: ctx && ctx.user ? ctx.user.name : '', action: action, details: details || '', created_at: nowStamp_() });
 }
 
 function notify_(userId, title, message, link) {
@@ -563,7 +635,10 @@ function publicSettings_() {
 /* ---------- Public ---------- */
 action_('config', { auth: false }, function () {
   var s = publicSettings_();
-  return { system_name: s.system_name, school_name: s.school_name, email_domain: s.email_domain, allow_registration: s.allow_registration,
+  var teachers = T('Users').rows().filter(function (u) { return u.status === 'active'; })
+    .map(function (u) { return { id: u.id, name: u.name, department: u.department, activated: !!u.password_hash }; })
+    .sort(function (a, b) { return a.name.localeCompare(b.name); });
+  return { system_name: s.system_name, school_name: s.school_name, allow_registration: s.allow_registration, teachers: teachers,
     rooms: T('Rooms').rows().filter(function (r) { return r.status === 'active'; }).length };
 });
 
@@ -581,16 +656,58 @@ action_('display', { auth: false }, function () {
 });
 
 /* ---------- Session ---------- */
-action_('session', { allowUnregistered: true }, function (d, ctx) {
-  var u = ctx.user;
-  if (u.status === 'unregistered' || u.status === 'pending') {
-    return { user: clean_(u), settings: publicSettings_() };
+/* ---------- Log masuk ---------- */
+action_('login', { auth: false, write: true }, function (d) {
+  var u = T('Users').find(d.user_id);
+  if (!u || u.status !== 'active') throw apiError_('VALIDATION', 'Sila pilih nama anda daripada senarai.');
+  if (!u.password_hash) throw apiError_('NOT_ACTIVATED', 'Ini log masuk kali pertama anda. Sila daftarkan No. KP anda sebagai kata laluan.');
+  throttle_(u.id);
+  if (!checkSecret_(loginSecret_(d.password), u.password_hash)) {
+    recordFail_(u.id);
+    audit_({ user: u }, 'auth.fail', 'Kata laluan salah');
+    throw apiError_('VALIDATION', 'No. KP / kata laluan tidak tepat.');
   }
-  var patch = { last_login_at: nowStamp_() };
-  if (!u.name) patch.name = u.email;
-  T('Users').update(u, patch);
+  audit_({ user: u }, 'auth.login', '');
+  return { token: createSession_(u, !!d.remember) };
+});
+
+action_('activate', { auth: false, write: true }, function (d) {
+  var u = T('Users').find(d.user_id);
+  if (!u || u.status !== 'active') throw apiError_('VALIDATION', 'Sila pilih nama anda daripada senarai.');
+  if (u.password_hash) throw apiError_('VALIDATION', 'Akaun ini sudah didaftarkan. Sila log masuk dengan No. KP anda.');
+  var ic = normIc_(d.ic);
+  if (!validIc_(ic)) throw apiError_('VALIDATION', 'No. Kad Pengenalan mestilah 12 digit.');
+  if (normIc_(d.ic_confirm) !== ic) throw apiError_('VALIDATION', 'Pengesahan No. KP tidak sepadan.');
+  T('Users').update(u, { password_hash: hashSecret_(ic) });
+  audit_({ user: u }, 'auth.activate', 'No. KP didaftarkan sebagai kata laluan');
+  return { token: createSession_(u, !!d.remember) };
+});
+
+action_('register', { auth: false, write: true }, function (d) {
+  if (setting_('allow_registration') !== '1') throw apiError_('FORBIDDEN', 'Pendaftaran sendiri ditutup. Sila hubungi pentadbir.');
+  var name = String(d.name || '').trim();
+  var ic = normIc_(d.ic);
+  if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama penuh.');
+  if (!validIc_(ic)) throw apiError_('VALIDATION', 'No. Kad Pengenalan mestilah 12 digit.');
+  if (findBy_('Users', 'name', name)) throw apiError_('VALIDATION', 'Nama ini sudah wujud dalam senarai. Sila pilih nama anda di halaman log masuk.');
+  var u = T('Users').insert({ name: name, password_hash: hashSecret_(ic), email: String(d.email || '').trim(), phone: String(d.phone || '').trim(),
+    department: String(d.department || '').trim(), role: 'guru', status: 'pending', created_at: nowStamp_() });
+  audit_({ user: u }, 'auth.register', name);
+  notifyAdmins_('Pendaftaran guru baharu', name + ' memohon akaun dan menunggu pengesahan.', '#/admin/users?status=pending');
+  return { status: 'pending' };
+});
+
+action_('logout', { write: true }, function (d, ctx) {
+  var th = sha_(ctx.token);
+  CacheService.getScriptCache().remove('ses_' + th);
+  var s = findBy_('Sessions', 'token_hash', th);
+  if (s) T('Sessions').remove(s);
+  return true;
+});
+
+action_('session', {}, function (d, ctx) {
   return {
-    user: clean_(u),
+    user: userOut_(ctx.user),
     settings: publicSettings_(),
     rooms: T('Rooms').rows().map(clean_),
     periods: T('Periods').rows().map(clean_).sort(function (a, b) { return a.start_time < b.start_time ? -1 : 1; }),
@@ -599,24 +716,20 @@ action_('session', { allowUnregistered: true }, function (d, ctx) {
   };
 });
 
-action_('requestAccess', { allowUnregistered: true, write: true }, function (d, ctx) {
-  if (ctx.user.status === 'pending') return { status: 'pending' };
-  if (ctx.user.status !== 'unregistered') return { status: ctx.user.status };
-  if (setting_('allow_registration') !== '1') throw apiError_('FORBIDDEN', 'Pendaftaran sendiri ditutup. Sila hubungi pentadbir.');
-  var name = String(d.name || '').trim();
-  if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama penuh.');
-  T('Users').insert({ email: ctx.user.email, name: name, phone: String(d.phone || '').trim(), department: String(d.department || '').trim(), role: 'guru', status: 'pending', created_at: nowStamp_() });
-  audit_({ user: { email: ctx.user.email } }, 'auth.register', ctx.user.email);
-  notifyAdmins_('Pendaftaran pengguna baharu', name + ' (' + ctx.user.email + ') menunggu pengesahan akaun.', '#/admin/users?status=pending');
-  return { status: 'pending' };
+action_('password.change', { write: true }, function (d, ctx) {
+  if (!checkSecret_(loginSecret_(d.current), ctx.user.password_hash)) throw apiError_('VALIDATION', 'Kata laluan semasa tidak tepat.');
+  var pw = loginSecret_(checkPassword_(d.password));
+  T('Users').update(ctx.user, { password_hash: hashSecret_(pw) });
+  audit_(ctx, 'auth.password', '');
+  return true;
 });
 
 action_('profile.update', { write: true }, function (d, ctx) {
   var name = String(d.name || '').trim();
   if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama penuh.');
-  var u = T('Users').update(ctx.user, { name: name, phone: String(d.phone || '').trim(), department: String(d.department || '').trim() });
+  var u = T('Users').update(ctx.user, { name: name, email: String(d.email || '').trim(), phone: String(d.phone || '').trim(), department: String(d.department || '').trim() });
   audit_(ctx, 'profile.update', '');
-  return clean_(u);
+  return userOut_(u);
 });
 
 /* ---------- Dashboard ---------- */
@@ -966,7 +1079,7 @@ action_('admin.rooms.delete', { admin: true, write: true }, function (d, ctx) {
 action_('admin.users.list', { admin: true }, function () {
   var bookings = T('Bookings').rows();
   return T('Users').rows().map(function (u) {
-    var o = clean_(u);
+    var o = userOut_(u);
     o.bookings = bookings.filter(function (b) { return b.user_id === u.id; }).length;
     return o;
   }).sort(function (a, b) {
@@ -975,42 +1088,34 @@ action_('admin.users.list', { admin: true }, function () {
   });
 });
 
-function validUserEmail_(email) {
-  email = String(email || '').trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw apiError_('VALIDATION', 'E-mel tidak sah: ' + email);
-  var domain = String(setting_('email_domain') || '').replace(/^@/, '').toLowerCase();
-  var initialAdmin = CONFIG.INITIAL_ADMINS.map(function (x) { return String(x).toLowerCase(); }).indexOf(email) !== -1;
-  if (domain && !initialAdmin && email.slice(-(domain.length + 1)) !== '@' + domain) throw apiError_('VALIDATION', 'E-mel mesti berdomain @' + domain + ': ' + email);
-  return email;
-}
-
 action_('admin.users.save', { admin: true, write: true }, function (d, ctx) {
   var id = Number(d.id) || 0;
-  var rec = { name: String(d.name || '').trim(), email: validUserEmail_(d.email), phone: String(d.phone || '').trim(),
+  var rec = { name: String(d.name || '').trim(), email: String(d.email || '').trim().toLowerCase(), phone: String(d.phone || '').trim(),
     department: String(d.department || '').trim(), role: d.role === 'admin' ? 'admin' : 'guru' };
   if (rec.name.length < 3) throw apiError_('VALIDATION', 'Nama diperlukan.');
-  var dup = findBy_('Users', 'email', rec.email);
-  if (dup && dup.id !== id) throw apiError_('VALIDATION', 'E-mel telah didaftarkan untuk ' + dup.name + '.');
+  if (rec.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rec.email)) throw apiError_('VALIDATION', 'E-mel tidak sah.');
+  var dup = findBy_('Users', 'name', rec.name);
+  if (dup && dup.id !== id) throw apiError_('VALIDATION', 'Nama "' + rec.name + '" sudah wujud. Tambah maklumat pembeza, contohnya "(Sains)".');
   if (id === ctx.user.id && rec.role !== 'admin') throw apiError_('VALIDATION', 'Anda tidak boleh membuang peranan pentadbir anda sendiri.');
   if (id) {
-    audit_(ctx, 'user.update', rec.email);
-    return clean_(T('Users').update(id, rec));
+    audit_(ctx, 'user.update', rec.name);
+    return userOut_(T('Users').update(id, rec));
   }
   rec.status = 'active';
   rec.created_at = nowStamp_();
-  audit_(ctx, 'user.create', rec.email);
-  return clean_(T('Users').insert(rec));
+  audit_(ctx, 'user.create', rec.name);
+  return userOut_(T('Users').insert(rec));
 });
 
 action_('admin.users.import', { admin: true, write: true }, function (d, ctx) {
   var created = 0, skipped = [];
   String(d.text || '').split(/\r?\n/).forEach(function (line) {
     var parts = line.split(/[,\t;]/).map(function (s) { return s.trim(); });
-    if (parts.length < 2 || !parts[0]) return;
-    var email;
-    try { email = validUserEmail_(parts[1]); } catch (e) { skipped.push(parts[1] || parts[0]); return; }
-    if (findBy_('Users', 'email', email)) { skipped.push(email); return; }
-    T('Users').insert({ name: parts[0], email: email, department: parts[2] || '', role: 'guru', status: 'active', created_at: nowStamp_() });
+    if (!parts[0]) return;
+    var name = parts[0];
+    if (name.length < 3) { skipped.push(name + ' (nama terlalu pendek)'); return; }
+    if (findBy_('Users', 'name', name)) { skipped.push(name + ' (sudah wujud)'); return; }
+    T('Users').insert({ name: name, department: parts[1] || '', email: (parts[2] || '').toLowerCase(), role: 'guru', status: 'active', created_at: nowStamp_() });
     created++;
   });
   audit_(ctx, 'user.import', created + ' pengguna');
@@ -1024,8 +1129,20 @@ action_('admin.users.setStatus', { admin: true, write: true }, function (d, ctx)
   var status = d.status === 'active' ? 'active' : 'inactive';
   var wasPending = u.status === 'pending';
   T('Users').update(u, { status: status });
-  audit_(ctx, 'user.' + status, u.email);
+  audit_(ctx, 'user.' + status, u.name);
   if (status === 'active' && wasPending) notify_(u.id, 'Akaun anda telah diaktifkan', 'Selamat datang! Anda kini boleh membuat tempahan bilik khas.', '#/book');
+  return true;
+});
+
+action_('admin.users.resetPassword', { admin: true, write: true }, function (d, ctx) {
+  var u = T('Users').find(d.id);
+  if (!u) throw apiError_('NOT_FOUND', 'Pengguna tidak dijumpai.');
+  T('Users').update(u, { password_hash: '' });
+  T('Sessions').rows().filter(function (s) { return s.user_id === u.id; }).sort(function (a, b) { return b._row - a._row; })
+    .forEach(function (s) { T('Sessions').sheet.deleteRow(s._row); });
+  T('Sessions')._rows = null;
+  CacheService.getScriptCache().remove('fail_' + u.id);
+  audit_(ctx, 'user.reset_password', u.name);
   return true;
 });
 
@@ -1037,7 +1154,7 @@ action_('admin.users.delete', { admin: true, write: true }, function (d, ctx) {
     throw apiError_('VALIDATION', u.name + ' mempunyai rekod tempahan. Nyahaktifkan akaun untuk mengekalkan rekod.');
   }
   T('Users').remove(u);
-  audit_(ctx, 'user.delete', u.email);
+  audit_(ctx, 'user.delete', u.name);
   return true;
 });
 
@@ -1098,16 +1215,7 @@ action_('admin.periods.save', { admin: true, write: true }, function (d, ctx) {
 
 action_('admin.settings.save', { admin: true, write: true }, function (d, ctx) {
   var s = d.settings || {};
-  if (s.email_domain !== undefined) {
-    var nd = String(s.email_domain).trim().replace(/^@/, '').toLowerCase();
-    var me = ctx.user.email;
-    var initial = CONFIG.INITIAL_ADMINS.map(function (x) { return String(x).toLowerCase(); }).indexOf(me) !== -1;
-    if (nd && !initial && me.slice(-(nd.length + 1)) !== '@' + nd) {
-      throw apiError_('VALIDATION', 'Domain @' + nd + ' akan menyekat akaun anda sendiri (' + me + '). Sila semak semula.');
-    }
-    s.email_domain = nd;
-  }
-  ['system_name', 'school_name', 'school_code', 'school_address', 'email_domain', 'app_url'].forEach(function (k) {
+  ['system_name', 'school_name', 'school_code', 'school_address', 'app_url'].forEach(function (k) {
     if (s[k] !== undefined) setSetting_(k, String(s[k]).trim().slice(0, 200));
   });
   if (validTime_(s.open_time) && validTime_(s.close_time) && s.close_time > s.open_time) {
@@ -1182,7 +1290,7 @@ action_('admin.reports', { admin: true }, function (d) {
 
 action_('admin.audit', { admin: true }, function (d) {
   var q = String(d.q || '').toLowerCase();
-  var rows = T('Audit').rows().filter(function (a) { return !q || [a.action, a.details, a.user_email].join(' ').toLowerCase().indexOf(q) !== -1; })
+  var rows = T('Audit').rows().filter(function (a) { return !q || [a.action, a.details, a.user_name].join(' ').toLowerCase().indexOf(q) !== -1; })
     .sort(function (a, b) { return b.id - a.id; });
   var page = Math.max(1, Number(d.page) || 1);
   return { rows: rows.slice((page - 1) * 50, page * 50).map(clean_), total: rows.length, page: page, pages: Math.max(1, Math.ceil(rows.length / 50)) };

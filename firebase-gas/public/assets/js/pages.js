@@ -2,7 +2,7 @@
 (function (A) {
     'use strict';
     var $ = A.$, $$ = A.$$, esc = A.esc, S = A.S;
-    var CHART_JS = 'assets/vendor/chartjs/chart.umd.min.js';
+    
 
     function dateTile(b) {
         var d = new Date(b.date + 'T00:00:00');
@@ -14,7 +14,7 @@
      * ================================================================== */
     A.route('dashboard', { title: 'Papan Pemuka', render: function (ctx) {
         var admin = S.user.role === 'admin';
-        return Promise.all([A.api('dashboard'), admin ? A.loadScript(CHART_JS) : null]).then(function (res) {
+        return Promise.all([A.api('dashboard'), admin ? A.loadScript(A.vendor.chart) : null]).then(function (res) {
             if (!ctx.alive()) return;
             var d = res[0], now = d.now;
             var labels = admin ? ['Tempahan Hari Ini', 'Menunggu Kelulusan', 'Tempahan Bulan Ini', 'Pengguna Aktif'] : ['Tempahan Akan Datang', 'Menunggu Kelulusan', 'Tempahan Bulan Ini', 'Bilik Kosong Sekarang'];
@@ -364,8 +364,8 @@
      * Calendar (FullCalendar)
      * ================================================================== */
     A.route('calendar', { title: 'Jadual Tempahan', render: function (ctx) {
-        return A.loadScript('assets/vendor/fullcalendar/index.global.min.js').then(function () {
-            return A.loadScript('assets/vendor/fullcalendar/locale-ms.global.min.js');
+        return A.loadScript(A.vendor.fullcalendar).then(function () {
+            return A.loadScript(A.vendor.fullcalendarLocale);
         }).then(function () {
             if (!ctx.alive()) return;
             var p = ctx.params;
@@ -617,17 +617,24 @@
 
     A.route('profile', { title: 'Profil Saya', render: function (ctx) {
         var u = S.user;
-        ctx.view.innerHTML = A.pageTitle('Profil Saya', 'Maklumat akaun anda.') +
+        ctx.view.innerHTML = A.pageTitle('Profil Saya', 'Urus maklumat akaun dan kata laluan anda.') +
             '<div class="row g-4"><div class="col-lg-4"><div class="card text-center"><div class="card-body p-4">' +
-            (u.photo ? '<img src="' + esc(u.photo) + '" class="rounded-circle mb-3" width="84" height="84" alt="" referrerpolicy="no-referrer">' : '<div class="avatar avatar-xl mx-auto mb-3">' + esc(A.initials(u.name)) + '</div>') +
-            '<h2 class="h5 fw-bold mb-0">' + esc(u.name) + '</h2><div class="text-body-secondary small mb-2">' + esc(u.email) + '</div><span class="badge badge-soft-primary">' + (u.role === 'admin' ? 'Pentadbir' : 'Guru') + '</span>' +
-            '<div class="auth-note mt-4 text-start"><i class="bi bi-google me-1"></i>Anda log masuk dengan akaun Google. Kata laluan diurus oleh DELIMa / Google.</div></div></div></div>' +
-            '<div class="col-lg-8"><div class="card"><div class="card-header"><h2 class="card-title">Maklumat Peribadi</h2></div><div class="card-body"><form id="profileForm"><div class="row g-3">' +
+            '<div class="avatar avatar-xl mx-auto mb-3">' + esc(A.initials(u.name)) + '</div>' +
+            '<h2 class="h5 fw-bold mb-0">' + esc(u.name) + '</h2><div class="text-body-secondary small mb-2">' + esc(u.department || '') + '</div><span class="badge badge-soft-primary">' + (u.role === 'admin' ? 'Pentadbir' : 'Guru') + '</span>' +
+            '<div class="xsmall text-body-tertiary mt-3">Log masuk terakhir: ' + A.fmtDateTime(u.last_login_at) + '</div></div></div></div>' +
+            '<div class="col-lg-8"><div class="card mb-4"><div class="card-header"><h2 class="card-title">Maklumat Peribadi</h2></div><div class="card-body"><form id="profileForm"><div class="row g-3">' +
             '<div class="col-md-6"><label class="form-label fw-semibold">Nama penuh</label><input class="form-control" name="name" value="' + esc(u.name) + '" required></div>' +
-            '<div class="col-md-6"><label class="form-label fw-semibold">E-mel</label><input class="form-control" value="' + esc(u.email) + '" disabled></div>' +
-            '<div class="col-md-6"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="phone" value="' + esc(u.phone) + '"></div>' +
-            '<div class="col-md-6"><label class="form-label fw-semibold">Panitia / Unit</label><input class="form-control" name="department" value="' + esc(u.department) + '"></div></div>' +
-            '<button class="btn btn-primary mt-3">Simpan</button></form></div></div></div></div>';
+            '<div class="col-md-6"><label class="form-label fw-semibold">Panitia / Unit</label><input class="form-control" name="department" value="' + esc(u.department) + '"></div>' +
+            '<div class="col-md-6"><label class="form-label fw-semibold">E-mel <span class="fw-normal text-body-secondary">(untuk notifikasi)</span></label><input type="email" class="form-control" name="email" value="' + esc(u.email) + '"></div>' +
+            '<div class="col-md-6"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="phone" value="' + esc(u.phone) + '"></div></div>' +
+            '<button class="btn btn-primary mt-3">Simpan</button></form></div></div>' +
+            '<div class="card"><div class="card-header"><h2 class="card-title">Tukar Kata Laluan</h2></div><div class="card-body">' +
+            '<p class="small text-body-secondary">Secara lalai, kata laluan anda ialah No. Kad Pengenalan. Anda boleh menukarnya kepada kata laluan lain (sekurang-kurangnya 6 aksara).</p>' +
+            '<form id="pwForm" autocomplete="off"><div class="row g-3">' +
+            '<div class="col-md-4"><label class="form-label fw-semibold">Kata laluan semasa</label><input type="password" class="form-control" name="current" required></div>' +
+            '<div class="col-md-4"><label class="form-label fw-semibold">Kata laluan baharu</label><input type="password" class="form-control" name="password" minlength="6" required></div>' +
+            '<div class="col-md-4"><label class="form-label fw-semibold">Sahkan kata laluan</label><input type="password" class="form-control" name="confirm" minlength="6" required></div></div>' +
+            '<button class="btn btn-primary mt-3">Tukar Kata Laluan</button></form></div></div></div></div>';
         $('#profileForm').onsubmit = function (e) {
             e.preventDefault();
             var btn = $('button', this);
@@ -635,7 +642,18 @@
             A.api('profile.update', A.formData(this)).then(function (nu) {
                 Object.assign(S.user, nu);
                 A.toast('Profil berjaya dikemas kini.');
-                A.refreshSession().then(function () { location.reload(); });
+                A.busy(btn, false);
+            }).catch(function (err) { A.busy(btn, false); A.showError(err); });
+        };
+        $('#pwForm').onsubmit = function (e) {
+            e.preventDefault();
+            var d = A.formData(this), form = this, btn = $('button', this);
+            if (d.password !== d.confirm) { A.toast('Pengesahan kata laluan tidak sepadan.', 'warning'); return; }
+            A.busy(btn, true);
+            A.api('password.change', d).then(function () {
+                A.toast('Kata laluan berjaya ditukar.');
+                form.reset();
+                A.busy(btn, false);
             }).catch(function (err) { A.busy(btn, false); A.showError(err); });
         };
     } });
