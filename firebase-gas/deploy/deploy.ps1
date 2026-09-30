@@ -48,10 +48,10 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 Info ('Node.js ' + (node --version))
 
 Say 'Pasang/kemas kini alat (firebase-tools, clasp)'
-if (-not (Get-Command firebase.cmd -ErrorAction SilentlyContinue)) { Run 'npm.cmd' @('install', '-g', 'firebase-tools') } else { Info 'firebase-tools sudah ada.' }
+if (-not (Get-Command firebase.cmd -ErrorAction SilentlyContinue)) { Info 'Memasang firebase-tools... (1-3 minit, sila tunggu)'; Run 'npm.cmd' @('install', '-g', 'firebase-tools') } else { Info 'firebase-tools sudah ada.' }
 $claspOk = $false
 if (Get-Command clasp.cmd -ErrorAction SilentlyContinue) { $claspOk = ((& clasp.cmd --version) -match [regex]::Escape($ClaspVersion)) }
-if (-not $claspOk) { Run 'npm.cmd' @('install', '-g', "@google/clasp@$ClaspVersion") } else { Info 'clasp sudah ada.' }
+if (-not $claspOk) { Info "Memasang clasp $ClaspVersion... (1-3 minit, sila tunggu)"; Run 'npm.cmd' @('install', '-g', "@google/clasp@$ClaspVersion"); Info 'clasp dipasang.' } else { Info 'clasp sudah ada.' }
 
 # ---------------------------------------------------------------- 1. Apps Script
 Say 'LANGKAH 1: Google Apps Script'
