@@ -180,16 +180,45 @@ window.App = (function () {
      * API client — google.script.run when served from Apps Script,
      * otherwise fetch() to the Web App URL (e.g. from Firebase Hosting)
      * ------------------------------------------------------------------ */
-    var TOKEN_KEY = 'tb-token';
+    /* ------------------------------------------------------------------
+     * Which school is this? booking.akmalsys.com/<kod> on the web,
+     * or ?s=<kod> when the app is served straight from Apps Script.
+     * ------------------------------------------------------------------ */
+    var CFG = window.APP_CONFIG || {};
+    var IN_GAS = !!(window.google && google.script && google.script.run);
+    var NOT_SCHOOL = { '': 1, 'index.html': 1, 'platform': 1, 'display.html': 1 };
+    function detectSchool() {
+        if (IN_GAS) return String(CFG.school || '').toLowerCase();
+        var seg = decodeURIComponent(location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || '').toLowerCase();
+        if (!NOT_SCHOOL[seg]) return seg;
+        var q = new URLSearchParams(location.search).get('s');
+        return q ? q.toLowerCase() : '';
+    }
+    function isPlatformPage() {
+        return IN_GAS ? !!CFG.platform : /^\/platform\/?$/.test(location.pathname);
+    }
+    function schoolLink(slug) {
+        return IN_GAS ? CFG.gasUrl + '?s=' + encodeURIComponent(slug) : '/' + encodeURIComponent(slug);
+    }
+    function homeLink() {
+        return IN_GAS ? CFG.gasUrl : '/';
+    }
+    /** Navigate the whole window (the Apps Script app runs inside an iframe). */
+    function goTop(url) {
+        if (IN_GAS) window.open(url, '_top'); else location.href = url;
+    }
+    S.school = detectSchool();
+
+    function tokenKey() { return 'tb-token:' + S.school; }
     function getToken() {
-        try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || S.token || ''; } catch (e) { return S.token || ''; }
+        try { return localStorage.getItem(tokenKey()) || sessionStorage.getItem(tokenKey()) || S.token || ''; } catch (e) { return S.token || ''; }
     }
     function setToken(token, remember) {
         S.token = token || '';
         try {
-            localStorage.removeItem(TOKEN_KEY);
-            sessionStorage.removeItem(TOKEN_KEY);
-            if (token) (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+            localStorage.removeItem(tokenKey());
+            sessionStorage.removeItem(tokenKey());
+            if (token) (remember ? localStorage : sessionStorage).setItem(tokenKey(), token);
         } catch (e) { /* storage blocked: keep token in memory only */ }
     }
 
@@ -212,12 +241,19 @@ window.App = (function () {
 
     function api(action, data, opts) {
         opts = opts || {};
-        return transport({ action: action, data: data || {}, token: opts.public ? undefined : getToken() || undefined }).then(function (j) {
+        var payload = { action: action, data: data || {} };
+        if (opts.platform) {
+            payload.token = opts.token || undefined;
+        } else {
+            payload.school = S.school;
+            payload.token = opts.public ? undefined : getToken() || undefined;
+        }
+        return transport(payload).then(function (j) {
             if (j.meta) setMeta(j.meta);
             if (!j.ok) {
                 var e = new Error(j.error || 'Ralat');
                 e.code = j.code; e.info = j.info;
-                if (j.code === 'AUTH' && !opts.public && S.user) {
+                if (j.code === 'AUTH' && !opts.public && !opts.platform && S.user) {
                     setToken('');
                     S.user = null;
                     toast(j.error, 'warning');
@@ -281,7 +317,13 @@ window.App = (function () {
             teachers.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + (t.department ? ' (' + esc(t.department) + ')' : '') + '</option>'; }).join('') +
             '</select></div><div id="loginStep"></div></form>' +
             (S.settings.allow_registration === '1' ? '<p class="text-center text-body-secondary mt-4 mb-0 small">Nama anda tiada dalam senarai? <a href="#" id="showRegister" class="fw-semibold">Daftar di sini</a></p>' : '') +
-            '<p class="text-center xsmall text-body-tertiary mt-3 mb-0">Lupa kata laluan? Hubungi pentadbir sistem untuk menetapkan semula.</p>');
+            '<p class="text-center xsmall text-body-tertiary mt-3 mb-0">Lupa kata laluan? Hubungi pentadbir sistem untuk menetapkan semula.</p>' +
+            '<p class="text-center xsmall mt-2 mb-0"><a href="#" id="switchSchool" class="text-body-secondary"><i class="bi bi-arrow-left-right me-1"></i>Bukan ' + esc(S.settings.school_name || 'sekolah ini') + '? Tukar sekolah</a></p>');
+        $('#switchSchool', a).onclick = function (e) {
+            e.preventDefault();
+            try { localStorage.removeItem('tb-last-school'); } catch (err) { /* ignore */ }
+            goTop(homeLink());
+        };
         var sel = $('#userSelect', a), step = $('#loginStep', a);
         try { var last = localStorage.getItem('tb-last-user'); if (last && teachers.some(function (t) { return String(t.id) === last; })) sel.value = last; } catch (e) { /* ignore */ }
 
@@ -395,7 +437,34 @@ window.App = (function () {
             S.teachers = c.teachers;
             S.settings = Object.assign(S.settings, c);
             applySettings();
+            try { localStorage.setItem('tb-last-school', JSON.stringify({ slug: S.school, name: c.school_name })); } catch (e) { /* ignore */ }
         });
+    }
+
+    /* ------------------------------------------------------------------
+     * Landing page (no school in the URL): ask for the school code.
+     * The list of schools is never shown.
+     * ------------------------------------------------------------------ */
+    function showLanding(errorMsg) {
+        var last = null;
+        try { last = JSON.parse(localStorage.getItem('tb-last-school') || 'null'); } catch (e) { /* ignore */ }
+        S.settings.system_name = S.settings.system_name || CFG.platformName || 'Sistem Tempahan Bilik Khas';
+        var a = showAuth(
+            (last && last.slug && !errorMsg ? '<a href="' + esc(schoolLink(last.slug)) + '" class="continue-school mb-4" id="continueSchool"><span class="small text-body-secondary">Teruskan ke</span><strong>' + esc(last.name || last.slug) +
+                '</strong><i class="bi bi-arrow-right-circle-fill"></i></a><div class="text-center small text-body-secondary mb-3">atau masukkan kod sekolah lain</div>'
+                : '<h2 class="h3 fw-bold mb-1">Selamat datang 👋</h2><p class="text-body-secondary mb-4">Masukkan kod sekolah anda untuk log masuk.</p>') +
+            (errorMsg ? '<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i>' + esc(errorMsg) + '</div>' : '') +
+            '<form id="codeForm" autocomplete="off"><label class="form-label fw-semibold" for="schoolCode">Kod sekolah</label>' +
+            '<div class="input-icon mb-3"><i class="bi bi-building"></i><input class="form-control form-control-lg text-lowercase" id="schoolCode" required placeholder="cth. smkabc"></div>' +
+            '<button class="btn btn-primary btn-lg w-100 fw-semibold">Teruskan <i class="bi bi-arrow-right ms-1"></i></button></form>' +
+            '<p class="text-center xsmall text-body-tertiary mt-4 mb-0">Tidak tahu kod sekolah? Tanya pentadbir sistem di sekolah anda, atau gunakan pautan yang mereka kongsikan.</p>');
+        var cont = $('#continueSchool', a);
+        if (cont) cont.onclick = function (e) { e.preventDefault(); goTop(schoolLink(last.slug)); };
+        $('#codeForm', a).onsubmit = function (e) {
+            e.preventDefault();
+            var code = $('#schoolCode', a).value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+            if (code) goTop(schoolLink(code));
+        };
     }
 
     function startSession() {
@@ -590,14 +659,13 @@ window.App = (function () {
         fullcalendar: 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js',
         fullcalendarLocale: 'https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.15/locales/ms.global.min.js',
     } : {
-        chart: 'assets/vendor/chartjs/chart.umd.min.js',
-        fullcalendar: 'assets/vendor/fullcalendar/index.global.min.js',
-        fullcalendarLocale: 'assets/vendor/fullcalendar/locale-ms.global.min.js',
+        chart: '/assets/vendor/chartjs/chart.umd.min.js',
+        fullcalendar: '/assets/vendor/fullcalendar/index.global.min.js',
+        fullcalendarLocale: '/assets/vendor/fullcalendar/locale-ms.global.min.js',
     };
 
     function displayUrl() {
-        var cfg = window.APP_CONFIG || {};
-        return cfg.cdn && cfg.gasUrl ? cfg.gasUrl + '?page=display' : 'display.html';
+        return IN_GAS ? CFG.gasUrl + '?page=display&s=' + encodeURIComponent(S.school) : '/display.html?s=' + encodeURIComponent(S.school);
     }
 
     function loadScript(src) {
@@ -629,16 +697,26 @@ window.App = (function () {
     }
 
     function start() {
-        var cfg = window.APP_CONFIG || {};
-        var inGas = !!(window.google && google.script && google.script.run);
-        if (!inGas && (!cfg.gasUrl || /ISI_/.test(cfg.gasUrl))) {
+        if (!IN_GAS && (!CFG.gasUrl || /ISI_/.test(CFG.gasUrl))) {
             showMessage('gear', 'Konfigurasi belum lengkap', 'Sila isi <code>config.js</code> dengan URL Web App Google Apps Script. Rujuk <code>firebase-gas/README.md</code>.');
+            return;
+        }
+        if (isPlatformPage()) {
+            window.Platform.start();
+            return;
+        }
+        if (!S.school) {
+            showLanding();
             return;
         }
         wireGlobal();
         loadConfig().then(function () {
             return getToken() ? startSession() : showLogin();
         }).catch(function (err) {
+            if (err.code === 'SCHOOL_NOT_FOUND') return showLanding('Kod sekolah "' + S.school + '" tidak dijumpai. Sila semak dengan pentadbir sekolah anda.');
+            if (err.code === 'SCHOOL_SUSPENDED') {
+                return showMessage('pause-circle', 'Akaun digantung', esc(err.message), '<a href="#" class="btn btn-light mt-2" onclick="event.preventDefault();App.goTop(App.homeLink())">Pilih sekolah lain</a>');
+            }
             showMessage('wifi-off', 'Tidak dapat menghubungi pelayan', esc(err.message), '<button class="btn btn-primary mt-2" onclick="location.reload()">Cuba lagi</button>');
         });
     }
@@ -651,5 +729,6 @@ window.App = (function () {
         pageTitle: pageTitle, brandLogo: brandLogo, setLogo: setLogo, link: link, go: go, formData: formData, busy: busy, csvDownload: csvDownload, pager: pager,
         toast: toast, confirm: confirmBox, showError: showError, api: api, route: addRoute, reload: route, refreshSession: refreshSession,
         charts: charts, loadScript: loadScript, vendor: VENDOR, displayUrl: displayUrl, start: start,
+        showAuth: showAuth, goTop: goTop, homeLink: homeLink, schoolLink: schoolLink, IN_GAS: IN_GAS, CFG: CFG,
     };
 })();

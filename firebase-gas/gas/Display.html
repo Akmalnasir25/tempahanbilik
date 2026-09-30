@@ -465,6 +465,17 @@ th.is-break { color: var(--tb-muted); }
 .logo-upload { display: flex; gap: 1rem; align-items: center; padding: 1rem; border: 1px dashed var(--tb-border); border-radius: .8rem; background: var(--bs-tertiary-bg); }
 .slip-head .brand-logo.has-img { box-shadow: none; }
 
+/* ---------- Multi-school: landing & Super Admin panel ---------- */
+.continue-school { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .15rem 1rem; padding: 1rem 1.25rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; background: var(--bs-tertiary-bg); color: var(--bs-body-color); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.continue-school span { grid-column: 1; }
+.continue-school strong { grid-column: 1; font-size: 1.1rem; }
+.continue-school i { grid-column: 2; grid-row: 1 / span 2; font-size: 1.75rem; color: var(--bs-primary); }
+.continue-school:hover { border-color: var(--bs-primary); box-shadow: 0 .5rem 1.5rem rgba(30, 58, 138, .12); color: var(--bs-body-color); }
+.platform-nav { background: linear-gradient(120deg, #0f172a, #1e3a8a); }
+.platform-nav .brand-logo { background: rgba(255, 255, 255, .15); }
+.platform-nav .nav-link.active { color: #fff; }
+.school-link { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875rem; text-decoration: none; }
+
 </style>
 </head>
 <body class="display-board">
@@ -476,7 +487,7 @@ th.is-break { color: var(--tb-muted); }
     <div class="text-end"><div class="db-clock" id="clock">--:--</div><div class="opacity-75" id="dateLabel"></div></div>
 </header>
 <main class="db-grid" id="grid"><div class="opacity-75 p-4">Memuatkan…</div></main>
-<script>window.APP_CONFIG = { gasUrl: <?!= JSON.stringify(scriptUrl) ?>, cdn: true };</script>
+<script>window.APP_CONFIG = { gasUrl: <?!= JSON.stringify(scriptUrl) ?>, cdn: true, school: <?!= JSON.stringify(school) ?>, platform: <?!= JSON.stringify(platform) ?> };</script>
 <script>
 (function () {
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -486,11 +497,13 @@ th.is-break { color: var(--tb-muted); }
         if (gsr) return new Promise(function (ok, fail) { gsr.withSuccessHandler(function (x) { ok(JSON.parse(x)); }).withFailureHandler(fail).api(JSON.stringify(payload)); });
         return fetch(APP_CONFIG.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(function (r) { return r.json(); });
     }
+    var cfg = window.APP_CONFIG || {};
+    var school = String(cfg.school || new URLSearchParams(location.search).get('s') || '').toLowerCase();
     function tick() { var d = new Date(); document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
     function load() {
-        call({ action: 'display' })
+        call({ action: 'display', school: school })
             .then(function (j) {
-                if (!j.ok) throw new Error(j.error);
+                if (!j.ok) throw new Error(j.error || 'Ralat');
                 var d = j.data, now = pad(new Date().getHours()) + ':' + pad(new Date().getMinutes());
                 document.getElementById('school').textContent = d.school_name;
                 if (d.logo) {
@@ -513,7 +526,9 @@ th.is-break { color: var(--tb-muted); }
             })
             .catch(function (e) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">' + esc(e.message) + '</div>'; });
     }
-    tick(); load();
+    tick();
+    if (!school) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">Kod sekolah tidak dinyatakan dalam pautan.</div>'; return; }
+    load();
     setInterval(tick, 10000);
     setInterval(load, 120000);
 })();

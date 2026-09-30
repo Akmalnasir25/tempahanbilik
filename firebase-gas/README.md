@@ -1,77 +1,137 @@
-# Sistem Tempahan Bilik Khas — Versi Google Apps Script (+ Firebase pilihan)
+# Sistem Tempahan Bilik Khas — Versi Google Apps Script (banyak sekolah)
 
-Versi ini tidak memerlukan pelayan atau hosting berbayar. Data disimpan dalam **Google Sheets**, dan logik sistem berjalan dalam **Google Apps Script (GAS)**.
+Versi ini **percuma sepenuhnya** — tiada pelayan, tiada cPanel.
+- **Data:** disimpan dalam **Google Sheets**.
+- **Logik sistem:** berjalan dalam **Google Apps Script (GAS)**.
+- **Laman web:** di-hos di **Firebase Hosting** dengan domain sendiri, contohnya `booking.akmalsys.com`.
 
-> Versi PHP asal masih ada di root repo dan tidak diubah.
+> Versi PHP masih ada di root repo dan tidak diubah.
 
-## Cara log masuk
+## Konsep banyak sekolah
 
-1. **Pentadbir mendaftarkan nama guru sahaja**, sama ada satu per satu atau diimport secara pukal.
-2. Guru buka sistem, **pilih nama mereka dari dropdown** (boleh taip untuk cari).
-3. **Kali pertama:** guru **mendaftarkan No. Kad Pengenalan sendiri** (12 digit, ditaip dua kali). No. KP ini menjadi kata laluan mereka.
-4. **Seterusnya:** pilih nama dan masukkan No. KP. Sengkang dibenarkan, contohnya `900101-10-1234`.
-5. Guru boleh menukar kata laluan kepada yang lain di **Profil Saya**.
-6. Jika guru lupa kata laluan, pentadbir klik **Set semula kata laluan**. Guru kemudian mendaftarkan No. KP semula pada log masuk seterusnya.
+```
+booking.akmalsys.com/            → Halaman utama: guru taip kod sekolah (senarai sekolah TIDAK dipaparkan)
+booking.akmalsys.com/smkabc      → Sistem SMK ABC (guru, admin & bilik SMK ABC sahaja)
+booking.akmalsys.com/skbukit     → Sistem SK Bukit (terpisah sepenuhnya)
+booking.akmalsys.com/platform    → Panel Super Admin (anda): cipta, gantung & urus sekolah
+```
 
-Keselamatan: No. KP / kata laluan **tidak disimpan sebagai teks biasa**. Ia disimpan dalam bentuk cincang (*salted hash*) dalam Google Sheet. Akaun juga dikunci selama 15 minit selepas 5 cubaan yang salah.
+- **Setiap sekolah mendapat Google Sheet sendiri**, dicipta automatik dalam Google Drive anda. Data sekolah tidak pernah bercampur.
+- **Log masuk, sesi dan kata laluan juga terpisah.** Token sekolah A ditolak di sekolah B.
+- **Daftar platform:** Google Sheet yang memiliki skrip menyimpan senarai sekolah, akaun Super Admin dan log audit.
+- **Sekolah terakhir diingati:** halaman utama mengingati sekolah terakhir di peranti itu, jadi guru hanya perlu taip kod sekali.
+
+## Cara log masuk (guru & admin sekolah)
+
+1. Guru buka pautan sekolah masing-masing, contohnya `booking.akmalsys.com/smkabc`, atau taip kod sekolah di halaman utama.
+2. **Admin sekolah mendaftarkan nama guru sahaja**, satu per satu atau secara import pukal.
+3. Guru **pilih nama mereka dari dropdown**. Mereka boleh menaip untuk mencari nama.
+4. **Kali pertama:** guru **mendaftarkan No. Kad Pengenalan sendiri**.
+   - No. KP mesti 12 digit dan ditaip dua kali.
+   - No. KP ini menjadi kata laluan guru.
+5. **Seterusnya:** pilih nama dan masukkan No. KP. Sengkang dibenarkan, contohnya `900101-10-1234`.
+6. Guru boleh menukar kata laluan di **Profil Saya**.
+7. Jika guru lupa kata laluan, admin sekolah klik **Set semula kata laluan**. Guru mendaftarkan No. KP semula pada log masuk seterusnya.
+
+Keselamatan:
+- No. KP dan kata laluan disimpan sebagai cincangan bergaram (*salted hash*), bukan teks biasa.
+- Akaun dikunci selama 15 minit selepas 5 cubaan yang salah.
 
 ---
 
-## Pilihan A (paling mudah) — Deploy terus dalam Google Apps Script
+## Langkah 1 — Google Apps Script (backend)
 
-Hanya 3 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komputer.
-
-1. Log masuk ke Google dan cipta **Google Sheet baharu**, contohnya "Data Tempahan Bilik Khas".
+1. Log masuk ke Google dan cipta **Google Sheet baharu**, contohnya "Platform Tempahan Bilik". Sheet ini menjadi daftar platform.
 2. Klik **Extensions → Apps Script**.
 3. **`Code.gs`**: padam kandungan asal, kemudian tampal seluruh kandungan [`gas/Code.gs`](gas/Code.gs).
-4. **`Index.html`**: klik **＋ → HTML**, namakan fail **`Index`**, kemudian tampal kandungan [`gas/Index.html`](gas/Index.html).
-5. **`Display.html`**: ulang langkah yang sama dengan nama **`Display`** dan kandungan [`gas/Display.html`](gas/Display.html). Fail ini untuk paparan TV.
-6. (Disyorkan) Klik ⚙️ **Project Settings**, tandakan **"Show appsscript.json"**, kemudian tampal kandungan [`gas/appsscript.json`](gas/appsscript.json). Ini menetapkan zon waktu Malaysia.
-7. Di bahagian atas `Code.gs`, tukar **`ADMIN_IC`** kepada No. KP pentadbir:
+4. **`Index.html`**: klik **＋ → HTML**, namakan **`Index`**, kemudian tampal kandungan [`gas/Index.html`](gas/Index.html).
+5. **`Display.html`**: ulang langkah 4 dengan nama **`Display`** dan kandungan [`gas/Display.html`](gas/Display.html).
+6. (Disyorkan) Tetapkan zon waktu Malaysia:
+   - Buka ⚙️ **Project Settings**.
+   - Tandakan **"Show appsscript.json"**.
+   - Tampal kandungan [`gas/appsscript.json`](gas/appsscript.json).
+7. Semak bahagian atas `Code.gs`:
    ```js
    var CONFIG = {
-     ADMIN_IC: '800101015555',      // No. KP pentadbir = kata laluan pentadbir
-     ADMIN_NAME: 'Pentadbir Sistem',
+     PLATFORM_NAME: 'Sistem Tempahan Bilik Khas',
+     WEB_URL: 'https://booking.akmalsys.com',   // domain anda; pautan sekolah = WEB_URL/<kod>
    };
    ```
-8. Pilih fungsi **`setup`** dalam menu atas dan klik **▶ Run**. Benarkan akses apabila diminta.
-9. Klik **Deploy → New deployment → ⚙️ Web app**:
+   Jika tidak menggunakan domain sendiri, tetapkan `WEB_URL: ''`. Pautan sekolah akan menjadi `URL-web-app?s=<kod>`.
+8. Pilih fungsi **`setup`** dan klik **▶ Run**, kemudian benarkan akses apabila diminta. Kebenaran ini membolehkan skrip mencipta Google Sheet untuk setiap sekolah.
+9. Buka **Deploy → New deployment → ⚙️ Web app**, kemudian tetapkan:
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
-10. Klik **Deploy** dan salin **URL Web App** (berakhir dengan `/exec`). **Inilah alamat sistem anda**; kongsikan kepada guru.
-11. Buka URL tersebut, pilih **Pentadbir Sistem**, dan masukkan `ADMIN_IC`. Kemudian:
-    - **Tetapan Sistem:** tukar nama sekolah dan **muat naik logo sekolah**. Logo dikecilkan secara automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV.
-    - **Daftar & Urus Guru:** masukkan nama guru.
-    - **Urus Bilik Khas:** kemas kini senarai bilik.
+10. Salin **URL Web App**. URL ini berakhir dengan `/exec`.
 
-> 💡 Paparan TV untuk bilik guru: `URL-web-app?page=display`
->
-> 💡 Jika pilihan "Anyone" tiada (sesetengah akaun DELIMa menyekatnya), gunakan **akaun Gmail biasa** untuk memiliki Sheet dan skrip ini.
+> 💡 Gunakan **akaun Gmail biasa** untuk memiliki Sheet dan skrip ini. Sesetengah akaun DELIMa menyekat pilihan "Anyone".
 
-## Pilihan B — Firebase Hosting (untuk URL `nama.web.app`)
+## Langkah 2 — Firebase Hosting + domain `booking.akmalsys.com`
 
-Frontend yang sama di-hos di Firebase, dan ia memanggil URL Web App GAS dari Pilihan A.
-
-1. Lengkapkan **Pilihan A langkah 1–10** dahulu. Fail `Index.html` dan `Display.html` tetap diperlukan untuk paparan TV, tetapi boleh ditinggalkan jika tidak mahu.
-2. Isi [`public/config.js`](public/config.js):
+1. Isi [`public/config.js`](public/config.js):
    ```js
    window.APP_CONFIG = { gasUrl: 'https://script.google.com/macros/s/…/exec' };
    ```
-3. Dalam [`.firebaserc`](.firebaserc), tukar `ISI_PROJECT_ID` kepada ID projek Firebase anda.
-4. Deploy (perlukan [Node.js](https://nodejs.org)):
+2. Dalam [`.firebaserc`](.firebaserc), tukar `ISI_PROJECT_ID` kepada ID projek Firebase anda.
+3. Deploy. Langkah ini memerlukan [Node.js](https://nodejs.org).
    ```bash
    npm install -g firebase-tools
    firebase login
    cd firebase-gas
    firebase deploy --only hosting
    ```
+4. Sambungkan domain di **Firebase Console → Hosting → Add custom domain**:
+   - Masukkan `booking.akmalsys.com`.
+   - Firebase memberikan rekod DNS: rekod **TXT** untuk pengesahan, dan rekod **A** atau **CNAME**.
+   - Tambah rekod tersebut di panel DNS tempat anda membeli `akmalsys.com`. Gunakan nama hos **`booking`**.
+   - Tunggu status bertukar menjadi *Connected*. Ini biasanya mengambil beberapa minit hingga beberapa jam.
+   - SSL (https) disediakan secara percuma dan automatik.
 
-Firebase Authentication **tidak diperlukan**, kerana log masuk diuruskan oleh sistem sendiri.
+[`firebase.json`](firebase.json) sudah menghantar semua laluan (`/smkabc`, `/platform`) ke `index.html`. Laman kemudian membaca kod sekolah daripada URL.
+
+## Langkah 3 — Super Admin & cipta sekolah
+
+1. Buka **`https://booking.akmalsys.com/platform`**, atau `URL-web-app?page=platform`.
+2. **Kali pertama sahaja:** cipta akaun Super Admin anda. Kata laluan mesti sekurang-kurangnya 10 aksara.
+3. Klik **Tambah Sekolah** dan isi maklumat berikut:
+   - Nama sekolah.
+   - **Kod pautan**, contohnya `smkabc`. Kod ini tidak boleh ditukar kemudian.
+   - Nama admin sekolah.
+4. Salin maklumat yang dipaparkan dan hantar kepada admin sekolah. Kata laluan sementara hanya dipaparkan **sekali**.
+   ```
+   Pautan sistem: https://booking.akmalsys.com/smkabc
+   Nama admin: Pn. Siti (Penyelaras ICT)
+   Kata laluan sementara: xxxxxxxxxx
+   ```
+5. Admin sekolah log masuk dan menukar kata laluan di **Profil Saya**. Selepas itu admin mendaftarkan guru dan bilik khas.
+
+Panel Super Admin juga boleh melakukan perkara berikut:
+- **Gantung atau aktifkan sekolah**, contohnya apabila langganan tamat. Pengguna sekolah itu akan melihat mesej "digantung".
+- **Set semula kata laluan admin sekolah**, atau tambah admin kedua.
+- **Padam sekolah.**
+  - Anda perlu menaip kod sekolah untuk mengesahkan.
+  - Google Sheet sekolah itu tidak dibuang. Ia dinamakan semula "[DIPADAM] …" supaya data boleh dipulihkan.
+- **Buka Google Sheet** mana-mana sekolah.
+- **Lihat Log Audit** platform.
+- **Guna Google Sheet sedia ada.** Jika sekolah pernah menggunakan versi satu-sekolah, tampal pautan Sheet lamanya semasa mencipta sekolah. Data lama akan terus digunakan.
+
+## Had percuma Google Apps Script (penting)
+
+Semua sekolah berkongsi satu skrip, jadi had Google untuk akaun anda turut dikongsi.
+- **Permintaan serentak:** kira-kira 30 bagi setiap skrip. Setiap tempahan mengambil masa 1–2 saat.
+- **Satu kunci (lock) untuk semua simpanan:**
+  - Tempahan dari sekolah berlainan diproses satu demi satu.
+  - Ini selamat, tetapi boleh menjadi perlahan jika ramai menempah pada saat yang sama.
+- **Kuota e-mel harian:**
+  - Akaun Gmail biasa: kira-kira 100 e-mel.
+  - Google Workspace: kira-kira 1,500 e-mel.
+
+Secara praktikal, had ini **sesuai untuk sekitar 10–30 sekolah** dengan penggunaan biasa. Untuk skala lebih besar, gunakan versi PHP di VPS, atau pecahkan kepada beberapa salinan skrip.
 
 ---
 
 ## Import pukal nama guru
-Di **Daftar & Urus Guru → Import Pukal**, tampal satu guru setiap baris. Anda juga boleh salin terus dari Excel atau Google Sheets:
+Di **Daftar & Urus Guru → Import Pukal**, tampal satu guru bagi setiap baris. Anda boleh salin terus dari Excel atau Google Sheets.
 ```
 Siti Aminah binti Ali, Bahasa Melayu
 Lim Wei Ming, Matematik, lim@contoh.com
@@ -80,36 +140,45 @@ Rahman bin Yusof
 Format: `Nama, Panitia (pilihan), E-mel (pilihan)`. E-mel hanya digunakan untuk notifikasi.
 
 ## Kemas kini sistem kemudian
-- **Ubah `Code.gs`:** klik **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. URL tidak berubah.
-- **Ubah fail dalam `public/`:** jalankan `node tools/build-gas.js` untuk menjana semula `gas/Index.html` dan `gas/Display.html`. Tampal semula fail tersebut dalam Apps Script, kemudian deploy *New version*. Untuk Pilihan B, jalankan juga `firebase deploy`.
+- **Jika `Code.gs` diubah:** buka **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. URL tidak berubah.
+- **Jika fail dalam `public/` diubah:**
+  1. Jalankan `node tools/build-gas.js` untuk menjana semula `gas/Index.html` dan `gas/Display.html`.
+  2. Tampal semula kedua-dua fail itu dalam Apps Script.
+  3. Deploy *New version*.
+  4. Jalankan `firebase deploy`.
 
 ## Sandaran data
-Semua data berada dalam Google Sheet. Gunakan **File → Version history** atau **File → Make a copy** untuk sandaran. **Jangan ubah nama helaian atau baris tajuk.**
+- **Data sekolah:** setiap sekolah ada Google Sheet sendiri dalam Drive anda. Pautannya boleh dibuka dari panel Super Admin.
+- **Cara sandaran:** gunakan **File → Version history** atau **File → Make a copy**.
+- **Jangan ubah nama helaian atau baris tajuk.**
 
 ## Masalah lazim
 | Masalah | Penyelesaian |
 |---|---|
-| "Helaian … tiada" | Jalankan fungsi `setup` dalam Apps Script |
+| "Kod sekolah tidak dijumpai" | Semak ejaan kod, atau semak senarai di panel Super Admin |
+| Sekolah "digantung" | Aktifkan semula di panel Super Admin |
+| Admin sekolah lupa kata laluan | Panel Super Admin → Urus → **Set semula** |
 | Nama guru tiada dalam dropdown | Pastikan guru didaftarkan dan berstatus **Aktif** |
-| Guru lupa kata laluan | **Daftar & Urus Guru → ⋯ → Set semula kata laluan** |
-| "Terlalu banyak cubaan" | Tunggu 15 minit, atau pentadbir set semula kata laluan |
-| Perubahan kod tidak berkesan | Deploy **New version** (bukan hanya Save) |
+| "Terlalu banyak cubaan" | Tunggu 15 minit, atau minta admin set semula kata laluan |
+| Perubahan kod tidak berkesan | Deploy **New version** (bukan sekadar Save) |
+| Domain belum berfungsi | Semak rekod DNS dan tunggu sehingga status *Connected* di Firebase |
 | Sistem agak perlahan (1–2 saat) | Ini normal untuk Apps Script |
 
 ## Ujian tempatan (untuk pembangun)
 ```bash
 node test/gas-mock-server.js 8090 &   # jalankan Code.gs sebenar dengan tiruan Google Sheets
-node test/e2e.js                      # ujian pelayar (Playwright), kedua-dua mod
+node test/e2e.js                      # ujian pelayar (Playwright): platform, 2 sekolah, kedua-dua mod
 ```
 
 ## Struktur
 ```
 firebase-gas/
-  gas/Code.gs            Backend: API, log masuk, logik tempahan
+  gas/Code.gs            Backend: API platform & sekolah, log masuk, logik tempahan
   gas/Index.html         Aplikasi untuk Apps Script (dijana oleh tools/build-gas.js)
   gas/Display.html       Paparan TV untuk Apps Script (dijana)
   gas/appsscript.json    Manifest Apps Script
   public/                Sumber frontend + laman untuk Firebase Hosting
+  public/assets/js/platform.js   Panel Super Admin
   tools/build-gas.js     Jana gas/*.html daripada public/
   test/                  Pelayan tiruan & ujian pelayar
 ```

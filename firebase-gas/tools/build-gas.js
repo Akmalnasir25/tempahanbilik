@@ -17,7 +17,7 @@ const CDN = {
 };
 const FONT = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">';
-const CONFIG = '<script>window.APP_CONFIG = { gasUrl: <?!= JSON.stringify(scriptUrl) ?>, cdn: true };</script>';
+const CONFIG = '<script>window.APP_CONFIG = { gasUrl: <?!= JSON.stringify(scriptUrl) ?>, cdn: true, school: <?!= JSON.stringify(school) ?>, platform: <?!= JSON.stringify(platform) ?> };</script>';
 
 function css() {
     // Fonts come from Google Fonts in the GAS build.
@@ -26,23 +26,23 @@ function css() {
 
 function build(src) {
     let html = read('public/' + src);
-    html = html.replace(/<link href="(assets\/vendor\/[^"?]+)"[^>]*>/g, (m, p) => {
+    html = html.replace(/<link href="\/?(assets\/vendor\/[^"?]+)"[^>]*>/g, (m, p) => {
         if (!CDN[p]) throw new Error('No CDN mapping for ' + p);
         return '<link href="' + CDN[p] + '" rel="stylesheet">';
     });
-    html = html.replace(/<link href="assets\/css\/app\.css[^"]*"[^>]*>/, () => FONT + '\n<style>\n' + css() + '\n</style>');
-    html = html.replace(/<script src="(assets\/vendor\/[^"?]+)"><\/script>/g, (m, p) => {
+    html = html.replace(/<link href="\/?assets\/css\/app\.css[^"]*"[^>]*>/, () => FONT + '\n<style>\n' + css() + '\n</style>');
+    html = html.replace(/<script src="\/?(assets\/vendor\/[^"?]+)"><\/script>/g, (m, p) => {
         if (!CDN[p]) throw new Error('No CDN mapping for ' + p);
         return '<script src="' + CDN[p] + '"></script>';
     });
-    html = html.replace(/<script src="config\.js[^"]*"><\/script>/, () => CONFIG);
-    html = html.replace(/<script src="(assets\/js\/[^"?]+)[^"]*"><\/script>/g, (m, p) => {
+    html = html.replace(/<script src="\/?config\.js[^"]*"><\/script>/, () => CONFIG);
+    html = html.replace(/<script src="\/?(assets\/js\/[^"?]+)[^"]*"><\/script>/g, (m, p) => {
         const js = read('public/' + p);
         if (js.indexOf('<?') !== -1 || /<\/script/i.test(js)) throw new Error(p + ' contains a sequence that breaks Apps Script templates');
         return '<script>\n' + js + '\n</script>';
     });
     html = html.replace(/<link rel="icon"[^>]*>\n?/, '');
-    if (/(src|href)="assets\//.test(html)) throw new Error(src + ': unresolved local asset reference');
+    if (/(src|href)="\/?assets\//.test(html)) throw new Error(src + ': unresolved local asset reference');
     return html;
 }
 

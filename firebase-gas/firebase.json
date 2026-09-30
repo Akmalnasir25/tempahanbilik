@@ -2,6 +2,9 @@
   "hosting": {
     "public": "public",
     "ignore": ["firebase.json", "**/.*"],
+    "cleanUrls": false,
+    "trailingSlash": false,
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
     "headers": [
       {
         "source": "**/*.@(js|css|woff2|woff)",

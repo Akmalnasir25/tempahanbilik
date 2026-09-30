@@ -1,20 +1,20 @@
 /**
- * Sistem Tempahan Bilik Khas — backend Google Apps Script
+ * Sistem Tempahan Bilik Khas — backend Google Apps Script (banyak sekolah)
  *
- * Data disimpan dalam Google Sheets (helaian yang "memiliki" skrip ini).
- * Sistem boleh dibuka terus melalui URL Web App ini (Index.html), atau
- * dari Firebase Hosting yang memanggil URL yang sama.
+ * - Helaian Google yang "memiliki" skrip ini ialah DAFTAR PLATFORM: senarai sekolah,
+ *   Super Admin dan log audit platform.
+ * - Setiap sekolah mendapat Google Sheet SENDIRI (dicipta automatik oleh panel Super Admin),
+ *   jadi data sekolah tidak pernah bercampur.
+ * - Frontend: terus dari URL Web App ini, atau dari Firebase Hosting (cth. booking.akmalsys.com/<kod-sekolah>).
  *
- * Log masuk: pentadbir mendaftar nama guru sahaja. Guru pilih nama → masukkan
- * No. Kad Pengenalan sebagai kata laluan. Kali pertama, guru mendaftarkan
- * No. KP mereka sendiri sebagai kata laluan.
+ * Log masuk sekolah: admin sekolah mendaftar nama guru. Guru pilih nama → kali pertama
+ * mendaftarkan No. Kad Pengenalan sendiri sebagai kata laluan.
  */
 
 var CONFIG = {
-  // Kata laluan (No. KP, 12 digit) pentadbir pertama. Selepas setup(), pilih
-  // "Pentadbir Sistem" di halaman log masuk dan masukkan No. KP ini.
-  ADMIN_IC: '000000000000',
-  ADMIN_NAME: 'Pentadbir Sistem',
+  PLATFORM_NAME: 'Sistem Tempahan Bilik Khas',
+  // Alamat frontend (Firebase Hosting / domain sendiri). Kosongkan jika guna URL Web App sahaja.
+  WEB_URL: 'https://booking.akmalsys.com',
 };
 
 var TZ = 'Asia/Kuala_Lumpur';
@@ -35,12 +35,19 @@ var SCHEMA = {
   Notifications: ['id', 'user_id', 'title', 'message', 'link', 'is_read', 'created_at'],
   Audit: ['id', 'user_name', 'action', 'details', 'created_at'],
 };
-var NUMERIC = { id: 1, user_id: 1, room_id: 1, capacity: 1, attendees: 1, requires_approval: 1, is_break: 1, is_read: 1, reviewed_by: 1, created_by: 1 };
+var PLATFORM_SCHEMA = {
+  Schools: ['id', 'slug', 'name', 'school_code', 'spreadsheet_id', 'status', 'contact_name', 'contact_phone', 'notes', 'created_at'],
+  SuperAdmins: ['id', 'name', 'email', 'password_hash', 'created_at', 'last_login_at'],
+  PlatformSessions: ['token_hash', 'admin_id', 'expires_at', 'created_at'],
+  PlatformAudit: ['id', 'admin_email', 'action', 'details', 'created_at'],
+};
+var NUMERIC = { id: 1, user_id: 1, room_id: 1, capacity: 1, attendees: 1, requires_approval: 1, is_break: 1, is_read: 1, reviewed_by: 1, created_by: 1, admin_id: 1 };
+var RESERVED_SLUGS = ['platform', 'display', 'index', 'assets', 'api', 'admin', 'www', 'login', 'config', 'app', 'static'];
 
 var DEFAULT_SETTINGS = {
   system_name: 'Sistem Tempahan Bilik Khas',
   school_name: 'Sekolah Menengah Kebangsaan Contoh',
-  school_code: 'ABC1234',
+  school_code: '',
   school_address: '',
   open_time: '07:00',
   close_time: '18:00',
@@ -62,16 +69,29 @@ var MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogo
 var MONTHS_SHORT = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 
 /* =====================================================================
- * Setup — jalankan SEKALI dari editor Apps Script (pilih "setup" → Run)
+ * Setup — jalankan SEKALI dari editor Apps Script (pilih "setup" → Run).
+ * Menyediakan daftar platform. Sekolah ditambah kemudian dari panel Super Admin.
  * ===================================================================== */
 function setup() {
-  var ss = ss_();
-  Object.keys(SCHEMA).forEach(function (name) {
+  prepareSheets_(platformSs_(), PLATFORM_SCHEMA);
+  var blank = platformSs_().getSheetByName('Sheet1') || platformSs_().getSheetByName('Helaian1');
+  if (blank && platformSs_().getSheets().length > 1) platformSs_().deleteSheet(blank);
+  return 'Setup selesai. Buka URL Web App (atau ' + (CONFIG.WEB_URL || '') + '/platform) untuk mencipta akaun Super Admin.';
+}
+
+function prepareSheets_(ss, schema) {
+  Object.keys(schema).forEach(function (name) {
     var sh = ss.getSheetByName(name) || ss.insertSheet(name);
     sh.getRange('A:Z').setNumberFormat('@'); // simpan tarikh/masa sebagai teks
-    sh.getRange(1, 1, 1, SCHEMA[name].length).setValues([SCHEMA[name]]).setFontWeight('bold').setBackground('#0b1b3f').setFontColor('#ffffff');
+    sh.getRange(1, 1, 1, schema[name].length).setValues([schema[name]]).setFontWeight('bold').setBackground('#0b1b3f').setFontColor('#ffffff');
     sh.setFrozenRows(1);
   });
+}
+
+/** Prepare a school spreadsheet (new or adopted). Must be called with that spreadsheet active (useSchoolSs_). */
+function setupSchool_(opts) {
+  var ss = ss_();
+  prepareSheets_(ss, SCHEMA);
   var blank = ss.getSheetByName('Sheet1') || ss.getSheetByName('Helaian1');
   if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
 
@@ -79,16 +99,16 @@ function setup() {
   Object.keys(DEFAULT_SETTINGS).forEach(function (k) {
     if (s[k] === undefined) setSetting_(k, DEFAULT_SETTINGS[k]);
   });
+  if (opts.name) setSetting_('school_name', opts.name);
+  if (opts.school_code) setSetting_('school_code', opts.school_code);
 
   if (!T('Rooms').rows().length) {
     [
-      ['MK1', 'Makmal Komputer 1', 'Makmal', 'Blok A, Aras 2', 40, 'Komputer x40, Projektor, Pendingin hawa', 'En. Rahman', '#1d4ed8', 0],
-      ['MK2', 'Makmal Komputer 2', 'Makmal', 'Blok A, Aras 3', 35, 'Komputer x35, Projektor, Pendingin hawa', 'En. Rahman', '#0891b2', 0],
-      ['MS1', 'Makmal Sains 1', 'Makmal', 'Blok B, Aras 1', 40, 'Peralatan eksperimen, Kebuk wasap, Sinki', 'Pn. Aminah', '#059669', 0],
-      ['BT', 'Bilik Tayang', 'Bilik Multimedia', 'Blok C, Aras 1', 80, 'Projektor HD, Sistem PA, Pendingin hawa', 'En. Lim', '#7c3aed', 0],
-      ['PSS', 'Pusat Sumber Sekolah', 'Pusat Sumber', 'Blok D, Aras 1', 60, 'Koleksi buku, Sudut digital', 'Pn. Siti', '#d97706', 0],
-      ['BM', 'Bilik Mesyuarat Utama', 'Bilik Mesyuarat', 'Blok Pentadbiran', 25, 'Skrin TV, Sidang video', 'Pejabat', '#475569', 1],
-      ['DSK', 'Dewan Serbaguna', 'Dewan', 'Kompleks Sukan', 300, 'Pentas, Sistem PA', 'HEM', '#0f766e', 1],
+      ['MK1', 'Makmal Komputer 1', 'Makmal', 'Blok A, Aras 2', 40, 'Komputer x40, Projektor, Pendingin hawa', '', '#1d4ed8', 0],
+      ['MS1', 'Makmal Sains 1', 'Makmal', 'Blok B, Aras 1', 40, 'Peralatan eksperimen, Kebuk wasap, Sinki', '', '#059669', 0],
+      ['BT', 'Bilik Tayang', 'Bilik Multimedia', 'Blok C, Aras 1', 80, 'Projektor HD, Sistem PA, Pendingin hawa', '', '#7c3aed', 0],
+      ['PSS', 'Pusat Sumber Sekolah', 'Pusat Sumber', 'Blok D, Aras 1', 60, 'Koleksi buku, Sudut digital', '', '#d97706', 0],
+      ['BM', 'Bilik Mesyuarat Utama', 'Bilik Mesyuarat', 'Blok Pentadbiran', 25, 'Skrin TV, Sidang video', '', '#475569', 1],
     ].forEach(function (r) {
       T('Rooms').insert({ code: r[0], name: r[1], category: r[2], location: r[3], capacity: r[4], facilities: r[5], pic_name: r[6], color: r[7], requires_approval: r[8], status: 'active', created_at: nowStamp_() });
     });
@@ -100,22 +120,20 @@ function setup() {
       ['Waktu 12', '13:20', '13:50', 0], ['Petang 1', '14:30', '15:30', 0], ['Petang 2', '15:30', '16:30', 0], ['Petang 3', '16:30', '17:30', 0],
     ].forEach(function (p) { T('Periods').insert({ label: p[0], start_time: p[1], end_time: p[2], is_break: p[3] }); });
   }
-  if (!T('Users').rows().some(function (u) { return u.role === 'admin'; })) {
-    var ic = normIc_(CONFIG.ADMIN_IC);
-    T('Users').insert({ name: CONFIG.ADMIN_NAME, password_hash: hashSecret_(ic), role: 'admin', status: 'active', created_at: nowStamp_() });
+  if (opts.admin_name) {
+    T('Users').insert({ name: opts.admin_name, password_hash: hashSecret_(opts.admin_password), role: 'admin', status: 'active', created_at: nowStamp_() });
   }
-  return 'Setup selesai. Log masuk sebagai "' + CONFIG.ADMIN_NAME + '" menggunakan No. KP dalam CONFIG.ADMIN_IC.';
 }
 
 /* =====================================================================
  * Entry points
- *  - doGet  : papar aplikasi (Index.html) atau paparan TV (?page=display)
+ *  - doGet  : papar aplikasi (Index.html), paparan TV (?page=display) atau panel platform (?page=platform)
  *  - doPost : API JSON untuk frontend di Firebase Hosting
  *  - api    : API yang sama untuk google.script.run (apabila dibuka terus dari GAS)
  * ===================================================================== */
 function doGet(e) {
-  var page = e && e.parameter && e.parameter.page;
-  var file = page === 'display' ? 'Display' : 'Index';
+  var p = (e && e.parameter) || {};
+  var file = p.page === 'display' ? 'Display' : 'Index';
   var t;
   try {
     t = HtmlService.createTemplateFromFile(file);
@@ -123,10 +141,10 @@ function doGet(e) {
     return json_({ ok: true, data: { service: 'tempahan-bilik', note: 'Fail ' + file + '.html tiada; hanya API tersedia.' } });
   }
   t.scriptUrl = ScriptApp.getService().getUrl();
-  var name = '';
-  try { name = setting_('system_name'); } catch (err2) { name = DEFAULT_SETTINGS.system_name; }
+  t.school = /^[a-z0-9-]{3,30}$/.test(String(p.s || '').toLowerCase()) ? String(p.s).toLowerCase() : '';
+  t.platform = p.page === 'platform';
   return t.evaluate()
-    .setTitle(page === 'display' ? 'Jadual Bilik Khas Hari Ini' : name)
+    .setTitle(p.page === 'display' ? 'Jadual Bilik Khas Hari Ini' : CONFIG.PLATFORM_NAME)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -156,15 +174,22 @@ function handle_(req) {
   var handler = ACTIONS[action];
   if (!handler) return { ok: false, code: 'NOT_FOUND', error: 'Tindakan tidak dikenali: ' + action };
   var lock = null;
+  _ss = null; _tables = {}; _ptables = {}; _currentSchoolSlug = '';
   try {
     if (handler.write) {
       lock = LockService.getScriptLock();
       lock.waitLock(25000);
     }
-    var ctx = { req: req, user: null, token: req.token || '' };
-    if (handler.auth !== false) {
-      ctx.user = sessionUser_(req.token);
-      if (handler.admin && ctx.user.role !== 'admin') throw apiError_('FORBIDDEN', 'Hanya pentadbir boleh melakukan tindakan ini.');
+    var ctx = { req: req, user: null, admin: null, school: null, token: req.token || '' };
+    if (handler.platform) {
+      if (handler.auth !== false) ctx.admin = platformAdmin_(req.token);
+    } else {
+      // Every school request runs against that school's own spreadsheet.
+      ctx.school = useSchool_(req.school);
+      if (handler.auth !== false) {
+        ctx.user = sessionUser_(req.token);
+        if (handler.admin && ctx.user.role !== 'admin') throw apiError_('FORBIDDEN', 'Hanya pentadbir boleh melakukan tindakan ini.');
+      }
     }
     var data = handler.fn(req.data || {}, ctx);
     var out = { ok: true, data: data };
@@ -191,7 +216,41 @@ function apiError_(code, message, info) {
 }
 
 /* =====================================================================
- * Auth — nama + kata laluan, sesi berasaskan token
+ * Schools (tenants)
+ * ===================================================================== */
+function validSlug_(slug) {
+  return /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug) && RESERVED_SLUGS.indexOf(slug) === -1;
+}
+
+function findSchool_(slug) {
+  slug = String(slug || '').toLowerCase().trim();
+  if (!validSlug_(slug)) return null;
+  return PT('Schools').rows().filter(function (s) { return String(s.slug).toLowerCase() === slug; })[0] || null;
+}
+
+/** Resolve the school for this request and point the storage layer at its spreadsheet. */
+function useSchool_(slug) {
+  var school = findSchool_(slug);
+  if (!school) throw apiError_('SCHOOL_NOT_FOUND', 'Kod sekolah "' + (slug || '') + '" tidak dijumpai.');
+  if (school.status !== 'active') throw apiError_('SCHOOL_SUSPENDED', 'Akaun ' + school.name + ' sedang digantung. Sila hubungi pemilik platform.');
+  useSchoolSs_(SpreadsheetApp.openById(school.spreadsheet_id));
+  _currentSchoolSlug = school.slug;
+  return school;
+}
+
+function useSchoolSs_(ss) {
+  _ss = ss;
+  _tables = {};
+}
+
+/** Cache keys are always prefixed with the school so sessions and lock-outs never leak across schools. */
+var _currentSchoolSlug = '';
+function cacheKey_(kind, id) {
+  return kind + '_' + (_currentSchoolSlug || 'x') + '_' + id;
+}
+
+/* =====================================================================
+ * Auth — nama + kata laluan, sesi berasaskan token (bagi setiap sekolah)
  * ===================================================================== */
 function hex_(bytes) {
   return bytes.map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('');
@@ -228,12 +287,12 @@ function loginSecret_(pw) {
 }
 
 function throttle_(userId) {
-  var n = Number(CacheService.getScriptCache().get('fail_' + userId) || 0);
+  var n = Number(CacheService.getScriptCache().get(cacheKey_('fail', userId)) || 0);
   if (n >= MAX_FAILS) throw apiError_('LOCKED', 'Terlalu banyak cubaan. Sila cuba semula selepas 15 minit atau hubungi pentadbir.');
 }
 function recordFail_(userId) {
   var c = CacheService.getScriptCache();
-  c.put('fail_' + userId, String(Number(c.get('fail_' + userId) || 0) + 1), 900);
+  c.put(cacheKey_('fail', userId), String(Number(c.get(cacheKey_('fail', userId)) || 0) + 1), 900);
 }
 
 function createSession_(user, remember) {
@@ -246,7 +305,7 @@ function createSession_(user, remember) {
   old.slice(0, 50).forEach(function (s) { T('Sessions').sheet.deleteRow(s._row); });
   if (old.length) T('Sessions')._rows = null;
   T('Sessions').insert({ token_hash: sha_(token), user_id: user.id, expires_at: expires, created_at: now });
-  CacheService.getScriptCache().remove('fail_' + user.id);
+  CacheService.getScriptCache().remove(cacheKey_('fail', user.id));
   T('Users').update(user, { last_login_at: now });
   return token;
 }
@@ -255,17 +314,17 @@ function sessionUser_(token) {
   if (!token) throw apiError_('AUTH', 'Sila log masuk.');
   var th = sha_(token);
   var cache = CacheService.getScriptCache();
-  var uid = cache.get('ses_' + th);
+  var uid = cache.get(cacheKey_('ses', th));
   if (!uid) {
     var s = findBy_('Sessions', 'token_hash', th);
     if (!s || s.expires_at < nowStamp_()) throw apiError_('AUTH', 'Sesi tamat. Sila log masuk semula.');
     uid = String(s.user_id);
-    cache.put('ses_' + th, uid, 600);
+    cache.put(cacheKey_('ses', th), uid, 600);
   }
   var user = T('Users').find(uid);
   // A password reset clears password_hash, which must end every existing session at once.
   if (!user || user.status !== 'active' || !user.password_hash) {
-    cache.remove('ses_' + th);
+    cache.remove(cacheKey_('ses', th));
     throw apiError_('AUTH', 'Akaun tidak aktif. Sila hubungi pentadbir.');
   }
   return user;
@@ -290,24 +349,38 @@ function meta_(user) {
 /* =====================================================================
  * Sheet storage layer
  * ===================================================================== */
+/** The current school's spreadsheet (set by useSchool_). */
 var _ss = null;
 function ss_() {
-  if (_ss) return _ss;
-  var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-  _ss = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!_ss) throw apiError_('SCHOOL_NOT_FOUND', 'Tiada sekolah dipilih.');
   return _ss;
+}
+
+/** The platform registry spreadsheet: the one this script is bound to. */
+var _pss = null;
+function platformSs_() {
+  if (_pss) return _pss;
+  var id = PropertiesService.getScriptProperties().getProperty('PLATFORM_SPREADSHEET_ID');
+  _pss = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+  return _pss;
 }
 
 var _tables = {};
 function T(name) {
-  if (!_tables[name]) _tables[name] = new Table_(name);
+  if (!_tables[name]) _tables[name] = new Table_(name, ss_(), SCHEMA[name]);
   return _tables[name];
 }
 
-function Table_(name) {
+var _ptables = {};
+function PT(name) {
+  if (!_ptables[name]) _ptables[name] = new Table_(name, platformSs_(), PLATFORM_SCHEMA[name]);
+  return _ptables[name];
+}
+
+function Table_(name, ss, cols) {
   this.name = name;
-  this.cols = SCHEMA[name];
-  this.sheet = ss_().getSheetByName(name);
+  this.cols = cols;
+  this.sheet = ss.getSheetByName(name);
   if (!this.sheet) throw apiError_('SETUP', 'Helaian "' + name + '" tiada. Sila jalankan fungsi setup() dalam Apps Script.');
   this._rows = null;
 }
@@ -483,7 +556,7 @@ function notify_(userId, title, message, link) {
   var u = T('Users').find(userId);
   if (!u || !u.email) return;
   try {
-    var url = String(setting_('app_url') || '');
+    var url = String(setting_('app_url') || '') || schoolUrl_(_currentSchoolSlug);
     var html = '<div style="font-family:Arial,sans-serif;max-width:560px">' +
       '<div style="background:#0b1b3f;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0"><strong>' + htmlEsc_(setting_('system_name')) + '</strong><br><small>' + htmlEsc_(setting_('school_name')) + '</small></div>' +
       '<div style="border:1px solid #e4e8f1;border-top:0;padding:20px;border-radius:0 0 10px 10px"><h3 style="margin:0 0 8px">' + htmlEsc_(title) + '</h3><p>' + htmlEsc_(message) + '</p>' +
@@ -660,7 +733,7 @@ action_('config', { auth: false }, function () {
   var teachers = T('Users').rows().filter(function (u) { return u.status === 'active'; })
     .map(function (u) { return { id: u.id, name: u.name, department: u.department, activated: !!u.password_hash }; })
     .sort(function (a, b) { return a.name.localeCompare(b.name); });
-  return { system_name: s.system_name, school_name: s.school_name, allow_registration: s.allow_registration, teachers: teachers, logo: logo_(),
+  return { school: _currentSchoolSlug, system_name: s.system_name, school_name: s.school_name, allow_registration: s.allow_registration, teachers: teachers, logo: logo_(),
     rooms: T('Rooms').rows().filter(function (r) { return r.status === 'active'; }).length };
 });
 
@@ -721,7 +794,7 @@ action_('register', { auth: false, write: true }, function (d) {
 
 action_('logout', { write: true }, function (d, ctx) {
   var th = sha_(ctx.token);
-  CacheService.getScriptCache().remove('ses_' + th);
+  CacheService.getScriptCache().remove(cacheKey_('ses', th));
   var s = findBy_('Sessions', 'token_hash', th);
   if (s) T('Sessions').remove(s);
   return true;
@@ -1163,7 +1236,7 @@ action_('admin.users.resetPassword', { admin: true, write: true }, function (d, 
   T('Sessions').rows().filter(function (s) { return s.user_id === u.id; }).sort(function (a, b) { return b._row - a._row; })
     .forEach(function (s) { T('Sessions').sheet.deleteRow(s._row); });
   T('Sessions')._rows = null;
-  CacheService.getScriptCache().remove('fail_' + u.id);
+  CacheService.getScriptCache().remove(cacheKey_('fail', u.id));
   audit_(ctx, 'user.reset_password', u.name);
   return true;
 });
@@ -1240,6 +1313,11 @@ action_('admin.settings.save', { admin: true, write: true }, function (d, ctx) {
   ['system_name', 'school_name', 'school_code', 'school_address', 'app_url'].forEach(function (k) {
     if (s[k] !== undefined) setSetting_(k, String(s[k]).trim().slice(0, 200));
   });
+  // Keep the platform registry's school name in step with what the school calls itself.
+  if (String(s.school_name || '').trim().length >= 3) {
+    var reg = findSchool_(_currentSchoolSlug);
+    if (reg) PT('Schools').update(reg, { name: String(s.school_name).trim().slice(0, 200) });
+  }
   if (validTime_(s.open_time) && validTime_(s.close_time) && s.close_time > s.open_time) {
     setSetting_('open_time', s.open_time);
     setSetting_('close_time', s.close_time);
@@ -1327,4 +1405,242 @@ action_('admin.audit', { admin: true }, function (d) {
     .sort(function (a, b) { return b.id - a.id; });
   var page = Math.max(1, Number(d.page) || 1);
   return { rows: rows.slice((page - 1) * 50, page * 50).map(clean_), total: rows.length, page: page, pages: Math.max(1, Math.ceil(rows.length / 50)) };
+});
+
+/* =====================================================================
+ * Platform (Super Admin) — manages schools; never touches bookings
+ * ===================================================================== */
+function platformAudit_(admin, action, details) {
+  PT('PlatformAudit').insert({ admin_email: admin ? admin.email : '', action: action, details: details || '', created_at: nowStamp_() });
+}
+
+function platformAdmin_(token) {
+  if (!token) throw apiError_('AUTH', 'Sila log masuk.');
+  var th = sha_(token);
+  var s = PT('PlatformSessions').rows().filter(function (x) { return x.token_hash === th; })[0];
+  if (!s || s.expires_at < nowStamp_()) throw apiError_('AUTH', 'Sesi tamat. Sila log masuk semula.');
+  var admin = PT('SuperAdmins').find(s.admin_id);
+  if (!admin) throw apiError_('AUTH', 'Akaun tidak wujud.');
+  return admin;
+}
+
+function platformSession_(admin) {
+  var token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+  var now = nowStamp_();
+  PT('PlatformSessions').insert({ token_hash: sha_(token), admin_id: admin.id,
+    expires_at: Utilities.formatDate(new Date(Date.now() + SESSION_HOURS * 3600000), TZ, 'yyyy-MM-dd HH:mm:ss'), created_at: now });
+  PT('SuperAdmins').update(admin, { last_login_at: now });
+  return token;
+}
+
+function schoolUrl_(slug) {
+  return CONFIG.WEB_URL ? CONFIG.WEB_URL.replace(/\/$/, '') + '/' + slug : ScriptApp.getService().getUrl() + '?s=' + slug;
+}
+
+function randomPassword_() {
+  var chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '';
+  for (var i = 0; i < 10; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+  return s;
+}
+
+/** Headline numbers for one school, cached for 10 minutes to keep the list page quick. */
+function schoolStats_(school, fresh) {
+  var cache = CacheService.getScriptCache(), key = 'stats_' + school.slug;
+  var hit = !fresh && cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var out = { users: 0, pending_users: 0, rooms: 0, bookings: 0, month: 0, last_login: '', admins: [], error: '' };
+  try {
+    useSchoolSs_(SpreadsheetApp.openById(school.spreadsheet_id));
+    var month = today_().slice(0, 7);
+    T('Users').rows().forEach(function (u) {
+      if (u.status === 'active') out.users++;
+      if (u.status === 'pending') out.pending_users++;
+      if (u.last_login_at > out.last_login) out.last_login = u.last_login_at;
+      if (u.role === 'admin') out.admins.push({ id: u.id, name: u.name, status: u.status, activated: !!u.password_hash, last_login_at: u.last_login_at });
+    });
+    out.rooms = T('Rooms').rows().filter(function (r) { return r.status !== 'inactive'; }).length;
+    var b = T('Bookings').rows();
+    out.bookings = b.length;
+    out.month = b.filter(function (x) { return BLOCKING[x.status] && x.date.slice(0, 7) === month; }).length;
+  } catch (err) {
+    out.error = 'Google Sheet sekolah tidak dapat dibuka: ' + (err && err.message || err);
+  }
+  cache.put(key, JSON.stringify(out), 600);
+  return out;
+}
+
+function schoolOut_(s, withStats, fresh) {
+  var o = clean_(s);
+  o.url = schoolUrl_(s.slug);
+  o.sheet_url = 'https://docs.google.com/spreadsheets/d/' + s.spreadsheet_id + '/edit';
+  if (withStats) o.stats = schoolStats_(s, fresh);
+  return o;
+}
+
+function spreadsheetIdFrom_(v) {
+  var m = /\/d\/([a-zA-Z0-9_-]{20,})/.exec(String(v || '')) || /^([a-zA-Z0-9_-]{20,})$/.exec(String(v || '').trim());
+  return m ? m[1] : '';
+}
+
+action_('platform.status', { platform: true, auth: false }, function () {
+  return { platform_name: CONFIG.PLATFORM_NAME, has_admins: PT('SuperAdmins').rows().length > 0 };
+});
+
+action_('platform.setup', { platform: true, auth: false, write: true }, function (d) {
+  if (PT('SuperAdmins').rows().length) throw apiError_('FORBIDDEN', 'Super Admin sudah wujud. Sila log masuk.');
+  var name = String(d.name || '').trim(), email = String(d.email || '').trim().toLowerCase(), pw = String(d.password || '');
+  if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama.');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw apiError_('VALIDATION', 'E-mel tidak sah.');
+  if (pw.length < 10) throw apiError_('VALIDATION', 'Kata laluan Super Admin mestilah sekurang-kurangnya 10 aksara.');
+  var admin = PT('SuperAdmins').insert({ name: name, email: email, password_hash: hashSecret_(pw), created_at: nowStamp_() });
+  platformAudit_(admin, 'platform.setup', email);
+  return { token: platformSession_(admin) };
+});
+
+action_('platform.login', { platform: true, auth: false, write: true }, function (d) {
+  var email = String(d.email || '').trim().toLowerCase();
+  var c = CacheService.getScriptCache(), key = 'pfail_' + sha_(email);
+  if (Number(c.get(key) || 0) >= MAX_FAILS) throw apiError_('LOCKED', 'Terlalu banyak cubaan. Sila cuba semula selepas 15 minit.');
+  var admin = PT('SuperAdmins').rows().filter(function (a) { return a.email === email; })[0];
+  if (!admin || !checkSecret_(String(d.password || ''), admin.password_hash)) {
+    c.put(key, String(Number(c.get(key) || 0) + 1), 900);
+    throw apiError_('VALIDATION', 'E-mel atau kata laluan tidak sah.');
+  }
+  c.remove(key);
+  platformAudit_(admin, 'platform.login', email);
+  return { token: platformSession_(admin) };
+});
+
+action_('platform.logout', { platform: true, write: true }, function (d, ctx) {
+  var th = sha_(ctx.token);
+  var s = PT('PlatformSessions').rows().filter(function (x) { return x.token_hash === th; })[0];
+  if (s) PT('PlatformSessions').remove(s);
+  return true;
+});
+
+action_('platform.me', { platform: true }, function (d, ctx) {
+  return { name: ctx.admin.name, email: ctx.admin.email, platform_name: CONFIG.PLATFORM_NAME, web_url: CONFIG.WEB_URL };
+});
+
+action_('platform.schools', { platform: true }, function (d) {
+  return PT('Schools').rows().map(function (s) { return schoolOut_(s, true, !!d.fresh); })
+    .sort(function (a, b) { return a.name.localeCompare(b.name); });
+});
+
+action_('platform.school.get', { platform: true }, function (d) {
+  var s = PT('Schools').find(d.id);
+  if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
+  return schoolOut_(s, true, true);
+});
+
+action_('platform.school.create', { platform: true, write: true }, function (d, ctx) {
+  var slug = String(d.slug || '').trim().toLowerCase();
+  var name = String(d.name || '').trim();
+  if (!validSlug_(slug)) throw apiError_('VALIDATION', 'Kod pautan mestilah 3–30 aksara: huruf kecil, nombor dan sengkang (cth. smkabc), dan bukan perkataan simpanan sistem.');
+  if (PT('Schools').rows().some(function (s) { return String(s.slug).toLowerCase() === slug; })) throw apiError_('VALIDATION', 'Kod pautan "' + slug + '" sudah digunakan.');
+  if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama sekolah.');
+  var adoptId = spreadsheetIdFrom_(d.adopt_sheet);
+  var adminName = String(d.admin_name || '').trim();
+  var password = String(d.admin_password || '') || randomPassword_();
+  if (!adoptId) {
+    if (adminName.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama admin sekolah.');
+    if (password.length < 8) throw apiError_('VALIDATION', 'Kata laluan admin mestilah sekurang-kurangnya 8 aksara (atau kosongkan untuk jana automatik).');
+  }
+
+  var ss;
+  if (adoptId) {
+    try { ss = SpreadsheetApp.openById(adoptId); } catch (err) { throw apiError_('VALIDATION', 'Google Sheet tidak dapat dibuka. Pastikan pautan betul dan anda pemiliknya.'); }
+  } else {
+    ss = SpreadsheetApp.create('Tempahan Bilik – ' + name + ' (' + slug + ')');
+  }
+  useSchoolSs_(ss);
+  _currentSchoolSlug = slug;
+  var hasAdmin = adoptId && ss.getSheetByName('Users') && T('Users').rows().some(function (u) { return u.role === 'admin'; });
+  setupSchool_({ name: name, school_code: String(d.school_code || '').trim(), admin_name: hasAdmin ? '' : (adminName || 'Pentadbir Sekolah'), admin_password: password });
+
+  var school = PT('Schools').insert({ slug: slug, name: name, school_code: String(d.school_code || '').trim(), spreadsheet_id: ss.getId(), status: 'active',
+    contact_name: String(d.contact_name || '').trim(), contact_phone: String(d.contact_phone || '').trim(), notes: String(d.notes || '').trim(), created_at: nowStamp_() });
+  platformAudit_(ctx.admin, 'school.create', slug + ' – ' + name + (adoptId ? ' (Google Sheet sedia ada)' : ''));
+  var out = schoolOut_(school, false);
+  out.admin_name = hasAdmin ? '' : (adminName || 'Pentadbir Sekolah');
+  out.admin_password = hasAdmin ? '' : password;
+  return out;
+});
+
+action_('platform.school.update', { platform: true, write: true }, function (d, ctx) {
+  var s = PT('Schools').find(d.id);
+  if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
+  var name = String(d.name || '').trim();
+  if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama sekolah.');
+  PT('Schools').update(s, { name: name, school_code: String(d.school_code || '').trim(), contact_name: String(d.contact_name || '').trim(),
+    contact_phone: String(d.contact_phone || '').trim(), notes: String(d.notes || '').trim() });
+  platformAudit_(ctx.admin, 'school.update', s.slug);
+  return schoolOut_(s, false);
+});
+
+action_('platform.school.setStatus', { platform: true, write: true }, function (d, ctx) {
+  var s = PT('Schools').find(d.id);
+  if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
+  var status = d.status === 'active' ? 'active' : 'suspended';
+  PT('Schools').update(s, { status: status });
+  platformAudit_(ctx.admin, 'school.' + status, s.slug);
+  return true;
+});
+
+action_('platform.school.resetAdmin', { platform: true, write: true }, function (d, ctx) {
+  var s = PT('Schools').find(d.id);
+  if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
+  useSchoolSs_(SpreadsheetApp.openById(s.spreadsheet_id));
+  _currentSchoolSlug = s.slug;
+  var pw = randomPassword_();
+  var u;
+  if (d.user_id) {
+    u = T('Users').find(d.user_id);
+    if (!u || u.role !== 'admin') throw apiError_('NOT_FOUND', 'Admin tidak dijumpai.');
+    T('Users').update(u, { password_hash: hashSecret_(pw), status: 'active' });
+    CacheService.getScriptCache().remove(cacheKey_('fail', u.id));
+  } else {
+    var name = String(d.name || '').trim();
+    if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama admin.');
+    u = T('Users').insert({ name: name, password_hash: hashSecret_(pw), role: 'admin', status: 'active', created_at: nowStamp_() });
+  }
+  CacheService.getScriptCache().remove('stats_' + s.slug);
+  platformAudit_(ctx.admin, d.user_id ? 'school.reset_admin' : 'school.add_admin', s.slug + ' – ' + u.name);
+  return { name: u.name, password: pw };
+});
+
+action_('platform.school.delete', { platform: true, write: true }, function (d, ctx) {
+  var s = PT('Schools').find(d.id);
+  if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
+  if (String(d.confirm_slug || '') !== s.slug) throw apiError_('VALIDATION', 'Kod pengesahan tidak sepadan. Sekolah tidak dipadam.');
+  // The Google Sheet is kept (renamed) so data can be recovered by the owner.
+  try { SpreadsheetApp.openById(s.spreadsheet_id).rename('[DIPADAM] ' + s.name + ' (' + s.slug + ')'); } catch (err) { /* sheet already gone */ }
+  PT('Schools').remove(s);
+  platformAudit_(ctx.admin, 'school.delete', s.slug + ' – ' + s.name);
+  return true;
+});
+
+action_('platform.audit', { platform: true }, function () {
+  return PT('PlatformAudit').rows().sort(function (a, b) { return b.id - a.id; }).slice(0, 300).map(clean_);
+});
+
+action_('platform.account.password', { platform: true, write: true }, function (d, ctx) {
+  if (!checkSecret_(String(d.current || ''), ctx.admin.password_hash)) throw apiError_('VALIDATION', 'Kata laluan semasa tidak tepat.');
+  if (String(d.password || '').length < 10) throw apiError_('VALIDATION', 'Kata laluan baharu mestilah sekurang-kurangnya 10 aksara.');
+  PT('SuperAdmins').update(ctx.admin, { password_hash: hashSecret_(String(d.password)) });
+  platformAudit_(ctx.admin, 'platform.password', '');
+  return true;
+});
+
+action_('platform.account.add', { platform: true, write: true }, function (d, ctx) {
+  var email = String(d.email || '').trim().toLowerCase(), name = String(d.name || '').trim(), pw = String(d.password || '');
+  if (name.length < 3 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || pw.length < 10) throw apiError_('VALIDATION', 'Sila masukkan nama, e-mel yang sah dan kata laluan sekurang-kurangnya 10 aksara.');
+  if (PT('SuperAdmins').rows().some(function (a) { return a.email === email; })) throw apiError_('VALIDATION', 'E-mel ini sudah didaftarkan.');
+  PT('SuperAdmins').insert({ name: name, email: email, password_hash: hashSecret_(pw), created_at: nowStamp_() });
+  platformAudit_(ctx.admin, 'platform.add_admin', email);
+  return PT('SuperAdmins').rows().map(function (a) { return { name: a.name, email: a.email, last_login_at: a.last_login_at }; });
+});
+
+action_('platform.account.list', { platform: true }, function () {
+  return PT('SuperAdmins').rows().map(function (a) { return { name: a.name, email: a.email, last_login_at: a.last_login_at }; });
 });

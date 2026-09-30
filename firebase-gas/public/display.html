@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Jadual Bilik Khas Hari Ini</title>
-    <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="assets/css/app.css?v=2" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/assets/css/app.css?v=2" rel="stylesheet">
 </head>
 <body class="display-board">
 <header class="db-head">
@@ -17,7 +17,7 @@
     <div class="text-end"><div class="db-clock" id="clock">--:--</div><div class="opacity-75" id="dateLabel"></div></div>
 </header>
 <main class="db-grid" id="grid"><div class="opacity-75 p-4">Memuatkan…</div></main>
-<script src="config.js?v=2"></script>
+<script src="/config.js?v=2"></script>
 <script>
 (function () {
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -27,11 +27,13 @@
         if (gsr) return new Promise(function (ok, fail) { gsr.withSuccessHandler(function (x) { ok(JSON.parse(x)); }).withFailureHandler(fail).api(JSON.stringify(payload)); });
         return fetch(APP_CONFIG.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(function (r) { return r.json(); });
     }
+    var cfg = window.APP_CONFIG || {};
+    var school = String(cfg.school || new URLSearchParams(location.search).get('s') || '').toLowerCase();
     function tick() { var d = new Date(); document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
     function load() {
-        call({ action: 'display' })
+        call({ action: 'display', school: school })
             .then(function (j) {
-                if (!j.ok) throw new Error(j.error);
+                if (!j.ok) throw new Error(j.error || 'Ralat');
                 var d = j.data, now = pad(new Date().getHours()) + ':' + pad(new Date().getMinutes());
                 document.getElementById('school').textContent = d.school_name;
                 if (d.logo) {
@@ -54,7 +56,9 @@
             })
             .catch(function (e) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">' + esc(e.message) + '</div>'; });
     }
-    tick(); load();
+    tick();
+    if (!school) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">Kod sekolah tidak dinyatakan dalam pautan.</div>'; return; }
+    load();
     setInterval(tick, 10000);
     setInterval(load, 120000);
 })();
