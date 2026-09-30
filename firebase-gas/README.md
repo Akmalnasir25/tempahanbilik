@@ -41,6 +41,24 @@ Keselamatan:
 
 ---
 
+## Cara paling mudah — `deploy.bat` (Windows)
+
+Skrip ini melakukan Langkah 1 dan 2 di bawah secara automatik.
+1. Muat turun repo ini (**Code → Download ZIP**) dan extract.
+2. Klik dua kali **`firebase-gas\deploy\deploy.bat`**.
+3. Ikut arahan pada skrin. Anda hanya perlu:
+   - Hidupkan suis **Google Apps Script API** (halaman dibuka automatik).
+   - Klik **Allow** apabila Google dan Firebase meminta kebenaran log masuk.
+   - Benarkan akses Web App sekali: **Review permissions → Advanced → Go to … → Allow**.
+   - Taip **Project ID** Firebase anda.
+4. Tambah domain `booking.akmalsys.com` di Firebase dan salin rekod DNS ke panel domain anda (lihat Langkah 2, perkara 4).
+
+Skrip ini memasang Node.js (melalui winget), firebase-tools dan clasp jika belum ada. Ia kemudian mencipta Google Sheet platform dan projek Apps Script, deploy Web App, mengisi `config.js` dan `.firebaserc`, dan deploy ke Firebase Hosting.
+
+**Untuk kemas kini kemudian**, klik dua kali `deploy.bat` sekali lagi. URL Web App dan projek Firebase yang sama akan digunakan semula.
+
+Cara manual di bawah hanya diperlukan jika anda tidak menggunakan Windows atau mahu melakukannya sendiri.
+
 ## Langkah 1 — Google Apps Script (backend)
 
 1. Log masuk ke Google dan cipta **Google Sheet baharu**, contohnya "Platform Tempahan Bilik". Sheet ini menjadi daftar platform.
@@ -60,7 +78,7 @@ Keselamatan:
    };
    ```
    Jika tidak menggunakan domain sendiri, tetapkan `WEB_URL: ''`. URL Web App akan digunakan sebagai alamat sistem.
-8. Pilih fungsi **`setup`** dan klik **▶ Run**, kemudian benarkan akses apabila diminta. Kebenaran ini membolehkan skrip mencipta Google Sheet untuk setiap sekolah.
+8. (Pilihan) Pilih fungsi **`setup`** dan klik **▶ Run**, kemudian benarkan akses apabila diminta. Helaian platform juga disediakan secara automatik pada permintaan pertama.
 9. Buka **Deploy → New deployment → ⚙️ Web app**, kemudian tetapkan:
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**

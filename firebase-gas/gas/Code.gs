@@ -74,10 +74,14 @@ var MONTHS_SHORT = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep
  * Menyediakan daftar platform. Sekolah ditambah kemudian dari panel Super Admin.
  * ===================================================================== */
 function setup() {
-  prepareSheets_(platformSs_(), PLATFORM_SCHEMA);
-  var blank = platformSs_().getSheetByName('Sheet1') || platformSs_().getSheetByName('Helaian1');
-  if (blank && platformSs_().getSheets().length > 1) platformSs_().deleteSheet(blank);
+  setupPlatform_(platformSs_());
   return 'Setup selesai. Buka URL Web App (atau ' + (CONFIG.WEB_URL || '') + '/platform) untuk mencipta akaun Super Admin.';
+}
+
+function setupPlatform_(ss) {
+  prepareSheets_(ss, PLATFORM_SCHEMA);
+  var blank = ss.getSheetByName('Sheet1') || ss.getSheetByName('Helaian1');
+  if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
 }
 
 function prepareSheets_(ss, schema) {
@@ -363,6 +367,9 @@ function platformSs_() {
   if (_pss) return _pss;
   var id = PropertiesService.getScriptProperties().getProperty('PLATFORM_SPREADSHEET_ID');
   _pss = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+  // First request after a fresh deployment: prepare the registry sheets automatically,
+  // so running setup() by hand in the editor is optional.
+  if (!_pss.getSheetByName('Schools')) setupPlatform_(_pss);
   return _pss;
 }
 
