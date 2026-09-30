@@ -24,6 +24,7 @@
         var t; return function () { var a = arguments, s = this; clearTimeout(t); t = setTimeout(function () { fn.apply(s, a); }, ms); };
     };
     var api = function (params) {
+        params = Object.assign({ s: document.body.dataset.school || '' }, params);
         return fetch('api.php?' + new URLSearchParams(params).toString(), { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
             .then(function (r) {
                 if (r.status === 401) { window.location.reload(); }
@@ -98,7 +99,7 @@
         if (bell) bell.addEventListener('shown.bs.dropdown', function () {
             var dot = $('.notif-dot', bell);
             if (!dot) return;
-            fetch('api.php?action=notifications-read', {
+            fetch('api.php?action=notifications-read&s=' + encodeURIComponent(document.body.dataset.school || ''), {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'X-CSRF-Token': document.body.dataset.csrf, Accept: 'application/json' }
             }).then(function () { dot.remove(); });
@@ -401,7 +402,7 @@
             },
             selectAllow: function (info) { return info.startStr.slice(0, 10) >= today; },
             select: function (info) {
-                var params = new URLSearchParams({ p: 'book', date: info.startStr.slice(0, 10) });
+                var params = new URLSearchParams({ s: document.body.dataset.school || '', p: 'book', date: info.startStr.slice(0, 10) });
                 if (roomSel.value) params.set('room_id', roomSel.value);
                 if (!info.allDay) {
                     params.set('start', info.startStr.slice(11, 16));

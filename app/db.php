@@ -1,23 +1,18 @@
 <?php
 declare(strict_types=1);
 
+/** Database of the current school (see tenancy.php). */
 function db(): PDO
 {
     static $pdo = null;
     if ($pdo instanceof PDO) {
         return $pdo;
     }
-    if (!is_dir(DATA_DIR)) {
-        mkdir(DATA_DIR, 0775, true);
+    $school = current_school();
+    if (!$school) {
+        throw new RuntimeException('Tiada sekolah dipilih.');
     }
-    $pdo = new PDO('sqlite:' . DATA_DIR . '/tempahan.sqlite', null, null, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-    $pdo->exec('PRAGMA foreign_keys = ON');
-    $pdo->exec('PRAGMA journal_mode = WAL');
-    $pdo->exec('PRAGMA busy_timeout = 5000');
-    migrate($pdo);
+    $pdo = open_school_db(school_db_path($school['slug']));
     return $pdo;
 }
 
@@ -156,9 +151,7 @@ function seed(PDO $pdo): void
         $st->execute([$k, $v]);
     }
 
-    $st = $pdo->prepare('INSERT INTO users(name, email, department, password_hash, role, must_change_password) VALUES (?,?,?,?,?,?)');
-    $st->execute(['Pentadbir Sistem', 'admin@sekolah.edu.my', 'Pentadbiran', password_hash('admin123', PASSWORD_DEFAULT), 'admin', 1]);
-    $st->execute(['Cikgu Contoh', 'guru@sekolah.edu.my', 'Sains & Matematik', password_hash('guru123', PASSWORD_DEFAULT), 'guru', 1]);
+    // Users are created per school by create_school() (the school's first admin).
 
     $rooms = [
         ['MK1', 'Makmal Komputer 1', 'Makmal', 'Blok A, Aras 2', 40, 'Komputer x40, Projektor, Pendingin hawa, Papan putih interaktif', 'En. Rahman', '#1d4ed8', 0],

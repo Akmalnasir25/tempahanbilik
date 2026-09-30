@@ -30,6 +30,36 @@ $routes = [
 ];
 
 $page = is_string($_GET['p'] ?? null) ? $_GET['p'] : 'dashboard';
+
+// Platform owner area (manages schools) — not tied to any school.
+if (str_starts_with($page, 'platform')) {
+    require APP_DIR . '/platform/router.php';
+    exit;
+}
+
+// "Tukar sekolah": forget the remembered school and go back to the code screen.
+if ($page === 'switch') {
+    unset($_SESSION['school']);
+    setcookie('tb_school', '', ['expires' => time() - 3600, 'path' => '/', 'samesite' => 'Lax', 'httponly' => true]);
+    header('Location: index.php');
+    exit;
+}
+
+$school = current_school();
+if (!$school) {
+    require APP_DIR . '/pages/landing.php';
+    exit;
+}
+if ($school['status'] !== 'active') {
+    http_response_code(403);
+    require APP_DIR . '/pages/suspended.php';
+    exit;
+}
+// Remember this school on the device so the landing page can offer it next time.
+if (($_COOKIE['tb_school'] ?? '') !== $school['slug'] && PHP_SAPI !== 'cli') {
+    setcookie('tb_school', $school['slug'], ['expires' => time() + 31536000, 'path' => '/', 'samesite' => 'Lax', 'httponly' => true]);
+}
+
 if (!isset($routes[$page])) {
     http_response_code(404);
     $page = current_user() ? 'dashboard' : 'login';

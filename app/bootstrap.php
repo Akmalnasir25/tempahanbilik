@@ -9,12 +9,15 @@ $config = [
     'data_dir' => APP_ROOT . '/data',
     'timezone' => 'Asia/Kuala_Lumpur',
     'debug'    => false,
+    // Name shown on the platform landing page and super admin panel.
+    'platform_name' => 'Sistem Tempahan Bilik Khas',
 ];
 if (is_file(APP_ROOT . '/config.php')) {
     $config = array_merge($config, (array) require APP_ROOT . '/config.php');
 }
 define('DATA_DIR', rtrim($config['data_dir'], '/'));
 define('APP_DEBUG', (bool) $config['debug']);
+define('PLATFORM_NAME', (string) $config['platform_name']);
 
 date_default_timezone_set($config['timezone']);
 ini_set('display_errors', APP_DEBUG ? '1' : '0');
@@ -40,6 +43,7 @@ if (PHP_SAPI !== 'cli') {
     header('Referrer-Policy: same-origin');
 }
 
+require APP_DIR . '/tenancy.php';
 require APP_DIR . '/db.php';
 require APP_DIR . '/helpers.php';
 require APP_DIR . '/booking.php';

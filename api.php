@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/app/bootstrap.php';
 
+$school = current_school();
+if (!$school || $school['status'] !== 'active') {
+    json_response(['error' => 'Sekolah tidak dijumpai atau tidak aktif.'], 404);
+}
 $user = current_user();
 if (!$user) {
     json_response(['error' => 'Sesi tamat. Sila log masuk semula.'], 401);

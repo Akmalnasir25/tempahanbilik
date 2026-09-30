@@ -10,7 +10,11 @@ function e(mixed $v): string
 
 function url(string $page, array $params = []): string
 {
-    return 'index.php?' . http_build_query(array_merge(['p' => $page], $params));
+    $base = ['p' => $page];
+    if (($slug = school_slug()) !== '' && !str_starts_with($page, 'platform')) {
+        $base['s'] = $slug;
+    }
+    return 'index.php?' . http_build_query(array_merge($base, $params));
 }
 
 function redirect(string $page, array $params = []): never
@@ -108,7 +112,7 @@ function settings(bool $refresh = false): array
 {
     static $cache = null;
     if ($cache === null || $refresh) {
-        $cache = db()->query('SELECT key, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
+        $cache = current_school() ? db()->query('SELECT key, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR) : [];
     }
     return $cache;
 }
@@ -133,12 +137,14 @@ function current_user(): ?array
         return $user;
     }
     $user = null;
-    if (!empty($_SESSION['uid'])) {
+    // Logins are kept per school, so an account at one school means nothing at another.
+    $slug = school_slug();
+    if ($slug !== '' && !empty($_SESSION['auth'][$slug])) {
         $st = db()->prepare("SELECT * FROM users WHERE id = ? AND status = 'active'");
-        $st->execute([$_SESSION['uid']]);
+        $st->execute([$_SESSION['auth'][$slug]]);
         $user = $st->fetch() ?: null;
         if (!$user) {
-            unset($_SESSION['uid']);
+            unset($_SESSION['auth'][$slug]);
         }
     }
     return $user;
@@ -152,7 +158,7 @@ function is_admin(): bool
 function login_user(array $user): void
 {
     session_regenerate_id(true);
-    $_SESSION['uid'] = (int) $user['id'];
+    $_SESSION['auth'][school_slug()] = (int) $user['id'];
     db()->prepare("UPDATE users SET last_login_at = datetime('now','localtime') WHERE id = ?")->execute([$user['id']]);
 }
 

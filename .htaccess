@@ -7,6 +7,13 @@ DirectoryIndex index.php
     RewriteRule ^(app|data|firebase-gas)(/|$) - [F,L]
     RewriteRule (^|/)\. - [F,L]
     RewriteRule ^(config\.php|router\.php|README\.md)$ - [F,L]
+
+    # Short school links: /smkabc  ->  index.php?s=smkabc  (works in a subfolder too)
+    RewriteCond %{REQUEST_URI}::$1 ^(.*?/)(.*)::\2$
+    RewriteRule ^(.*)$ - [E=TB_BASE:%1]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^([A-Za-z0-9][A-Za-z0-9-]{1,28}[A-Za-z0-9])/?$ %{ENV:TB_BASE}index.php?s=$1 [R=302,L,QSD]
 </IfModule>
 
 <FilesMatch "\.(sqlite|sqlite-wal|sqlite-shm|db|log|md)$">

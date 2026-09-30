@@ -6,4 +6,6 @@ return [
     'timezone' => 'Asia/Kuala_Lumpur',
     // Papar ralat penuh (untuk pembangunan sahaja — JANGAN aktifkan di pelayan sebenar)
     'debug'    => false,
+    // Nama platform di laman utama & panel Super Admin
+    'platform_name' => 'Sistem Tempahan Bilik Khas',
 ];

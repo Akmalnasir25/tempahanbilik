@@ -40,6 +40,18 @@ Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan d
 - Keselamatan: kata laluan dicincang (bcrypt), perlindungan CSRF, pertanyaan SQL berparameter, had cubaan log masuk dan sekatan akses ke folder `app/` dan `data/`.
 - Tempahan disimpan dalam transaksi `BEGIN IMMEDIATE`, jadi dua guru yang menekan "Hantar" serentak tidak akan mendapat slot yang sama.
 
+## Banyak sekolah (multi-sekolah)
+
+Satu pemasangan boleh digunakan oleh banyak sekolah. Setiap sekolah mempunyai **fail pangkalan data sendiri** (`data/schools/<kod>.sqlite`), iaitu admin, guru, bilik, tempahan, tetapan dan logo sendiri. Data sekolah lain langsung tidak boleh dicapai.
+
+- **Pautan sekolah:** `https://booking.akmalsys.com/<kod-sekolah>`, contohnya `/smkabc`. Admin sekolah kongsikan pautan ini kepada guru.
+- **Laman utama** meminta kod sekolah (senarai sekolah tidak didedahkan), dan mengingati sekolah terakhir pada peranti.
+- **Panel Super Admin** (pemilik platform): `index.php?p=platform`
+  - Kali pertama dibuka, anda diminta mencipta akaun Super Admin. **Buat ini segera selepas pemasangan.**
+  - Tambah sekolah (nama, kod pautan, admin pertama), gantung atau aktifkan, set semula kata laluan admin sekolah, tambah admin, muat turun sandaran, dan padam sekolah. Data sekolah yang dipadam disimpan dalam `data/deleted/`.
+  - Jika fail `data/tempahan.sqlite` daripada versi satu-sekolah wujud, ia boleh diimport sebagai sekolah pertama.
+- Log masuk disimpan berasingan bagi setiap sekolah, jadi akaun di satu sekolah tidak sah di sekolah lain.
+
 ## Pemasangan
 
 **Keperluan:** PHP 8.1 atau lebih baharu dengan sambungan `pdo_sqlite` (tersedia secara lalai di kebanyakan hosting cPanel).
@@ -58,16 +70,13 @@ Buka http://localhost:8000. Pangkalan data (`data/tempahan.sqlite`) dicipta seca
 
 > **Nginx:** tambah `location ~ ^/(app|data)/ { deny all; }` pada konfigurasi pelayan.
 
-### Akaun lalai
-| Peranan | E-mel | Kata laluan |
-|---|---|---|
-| Pentadbir | admin@sekolah.edu.my | admin123 |
-| Guru (contoh) | guru@sekolah.edu.my | guru123 |
-
-⚠️ **Tukar kata laluan pentadbir sebaik sahaja log masuk**, dan padam atau nyahaktifkan akaun guru contoh. Kemudian kemas kini nama sekolah di **Tetapan Sistem**, dan senarai bilik di **Urus Bilik Khas**.
+### Selepas pemasangan
+1. Buka `index.php?p=platform` dan cipta akaun **Super Admin** anda.
+2. Klik **Tambah Sekolah** dan isi nama sekolah, kod pautan serta admin pertama.
+3. Hantar pautan dan kata laluan sementara kepada admin sekolah. Admin akan diminta menukar kata laluan semasa log masuk pertama, kemudian mendaftar guru dan mengemas kini bilik di sekolah mereka.
 
 ## Sandaran
-Semua data berada dalam satu fail: `data/tempahan.sqlite`. Salin fail ini secara berkala untuk membuat sandaran.
+Sandarkan keseluruhan folder `data/` secara berkala: `platform.sqlite` ialah senarai sekolah, dan `schools/*.sqlite` ialah data setiap sekolah. Sandaran satu sekolah juga boleh dimuat turun dari panel Super Admin.
 
 ## Struktur
 ```

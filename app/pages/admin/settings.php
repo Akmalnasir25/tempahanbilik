@@ -35,6 +35,9 @@ if (is_post()) {
     foreach ($text as $k) {
         save_setting($k, mb_substr(input($k), 0, 150));
     }
+    if (mb_strlen(input('school_name')) >= 3) {
+        platform_db()->prepare('UPDATE schools SET name = ? WHERE slug = ?')->execute([mb_substr(input('school_name'), 0, 150), school_slug()]);
+    }
     if (valid_time(input('open_time')) && valid_time(input('close_time')) && input('close_time') > input('open_time')) {
         save_setting('open_time', input('open_time'));
         save_setting('close_time', input('close_time'));

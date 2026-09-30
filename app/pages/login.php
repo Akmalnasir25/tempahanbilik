@@ -109,6 +109,7 @@ $roomCount = (int) db()->query("SELECT COUNT(*) FROM rooms WHERE status = 'activ
                 <p class="text-center text-body-secondary mt-4 mb-0">Belum mempunyai akaun? <a href="<?= url('register') ?>" class="fw-semibold">Daftar sekarang</a></p>
             <?php endif; ?>
             <p class="text-center xsmall text-body-tertiary mt-4 mb-0">Lupa kata laluan? Hubungi pentadbir sistem untuk menetapkan semula.</p>
+            <p class="text-center xsmall mt-2 mb-0"><a href="index.php?p=switch" class="text-body-secondary"><i class="bi bi-arrow-left-right me-1"></i>Bukan <?= e(setting('school_name')) ?>? Tukar sekolah</a></p>
         </div>
     </section>
 </div>

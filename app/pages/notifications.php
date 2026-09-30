@@ -8,7 +8,7 @@ if ($open = (int) query('open')) {
     $st->execute([$open, $user['id']]);
     if ($n = $st->fetch()) {
         db()->prepare('UPDATE notifications SET is_read = 1 WHERE id = ?')->execute([$n['id']]);
-        if ($n['link'] && str_starts_with($n['link'], 'index.php?')) {
+        if ($n['link'] && str_starts_with($n['link'], 'index.php?') && !str_contains($n['link'], '//')) {
             header('Location: ' . $n['link']);
             exit;
         }

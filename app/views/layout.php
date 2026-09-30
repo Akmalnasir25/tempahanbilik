@@ -66,7 +66,7 @@ function render_header(string $title, string $active = '', array $opts = []): vo
     <?php head_tags($title); ?>
     <?= $opts['head'] ?? '' ?>
 </head>
-<body class="app" data-csrf="<?= e(csrf_token()) ?>">
+<body class="app" data-csrf="<?= e(csrf_token()) ?>" data-school="<?= e(school_slug()) ?>">
 <aside class="sidebar" id="sidebar">
     <a href="<?= url('dashboard') ?>" class="brand">
         <?= brand_logo() ?>
