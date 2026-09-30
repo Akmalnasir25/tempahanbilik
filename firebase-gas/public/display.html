@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ms" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jadual Bilik Khas Hari Ini</title>
+    <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="assets/css/app.css?v=2" rel="stylesheet">
+</head>
+<body class="display-board">
+<header class="db-head">
+    <div class="d-flex align-items-center gap-3">
+        <span class="brand-logo lg"><i class="bi bi-buildings"></i></span>
+        <div><div class="fs-4 fw-bold">Jadual Bilik Khas Hari Ini</div><div class="opacity-75" id="school"></div></div>
+    </div>
+    <div class="text-end"><div class="db-clock" id="clock">--:--</div><div class="opacity-75" id="dateLabel"></div></div>
+</header>
+<main class="db-grid" id="grid"><div class="opacity-75 p-4">Memuatkan…</div></main>
+<script src="config.js?v=2"></script>
+<script>
+(function () {
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    function tick() { var d = new Date(); document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function load() {
+        fetch(APP_CONFIG.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'display' }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j.ok) throw new Error(j.error);
+                var d = j.data, now = pad(new Date().getHours()) + ':' + pad(new Date().getMinutes());
+                document.getElementById('school').textContent = d.school_name;
+                document.getElementById('dateLabel').textContent = d.dateLabel;
+                document.getElementById('grid').innerHTML = d.rooms.map(function (r) {
+                    var list = d.bookings.filter(function (b) { return b.room_id === r.id; });
+                    var cur = list.filter(function (b) { return b.start <= now && b.end > now; })[0];
+                    var state = r.closed ? 'closed' : cur ? 'busy' : 'free';
+                    return '<section class="db-room ' + state + '" style="--c:' + esc(r.color) + '"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold fs-5">' + esc(r.name) +
+                        '</div><div class="small opacity-75">' + esc(r.location) + '</div></div><span class="db-state">' + { closed: 'DITUTUP', busy: 'DIGUNAKAN', free: 'KOSONG' }[state] + '</span></div>' +
+                        (r.closed ? '<div class="opacity-75">' + esc(r.closed) + '</div>' : cur ? '<div class="db-now"><strong>' + esc(cur.purpose) + '</strong><div>' + esc(cur.user) + (cur.class_name ? ' · ' + esc(cur.class_name) : '') + '</div><div class="small opacity-75">hingga ' + esc(cur.end) + '</div></div>' : '') +
+                        '<ul class="db-list">' + list.filter(function (b) { return b !== cur; }).map(function (b) {
+                            return '<li class="' + (b.end <= now ? 'done' : '') + '"><span>' + esc(b.start) + '–' + esc(b.end) + '</span>' + esc(b.purpose) + ' <em>' + esc(b.user) + '</em></li>';
+                        }).join('') + (!list.length && !r.closed ? '<li class="opacity-50">Tiada tempahan hari ini</li>' : '') + '</ul></section>';
+                }).join('');
+            })
+            .catch(function (e) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">' + esc(e.message) + '</div>'; });
+    }
+    tick(); load();
+    setInterval(tick, 10000);
+    setInterval(load, 120000);
+})();
+</script>
+</body>
+</html>

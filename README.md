@@ -1,5 +1,9 @@
 # Sistem Tempahan Bilik Khas
 
+> **Dua versi tersedia dalam repo ini:**
+> - **Versi PHP** (folder root, dokumen ini) — untuk hosting cPanel / PC sekolah.
+> - **Versi Firebase + Google Apps Script** ([`firebase-gas/`](firebase-gas/README.md)) — hos percuma di Firebase, data dalam Google Sheets, guru log masuk dengan akaun DELIMa.
+
 Sistem web untuk guru menempah bilik khas sekolah (makmal, bilik tayang, pusat sumber, dewan dan lain-lain). Sistem ini menghalang tempahan bertindih secara automatik, dan pentadbir boleh mengurus semua rekod dari satu papan pemuka.
 
 Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan diperlukan. Semua pustaka frontend (Bootstrap 5, FullCalendar, Chart.js, ikon dan fon) disimpan dalam `assets/vendor`, jadi sistem boleh berjalan di rangkaian dalaman sekolah tanpa akses Internet.
