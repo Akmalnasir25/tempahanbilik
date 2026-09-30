@@ -50,7 +50,7 @@ page_title('Senarai Bilik Khas', count($rooms) . ' bilik khas tersedia di ' . e(
                 <div class="p-4 d-flex flex-column h-100">
                     <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
                         <h3 class="h5 fw-bold mb-0"><?= e($r['name']) ?></h3>
-                        <?php if ($r['requires_approval']): ?><span class="badge badge-soft-warning" title="Perlu kelulusan pentadbir"><i class="bi bi-shield-lock"></i></span><?php endif; ?>
+                        <?php if (room_needs_approval($r)): ?><span class="badge badge-soft-warning" title="Perlu kelulusan pentadbir"><i class="bi bi-shield-lock"></i></span><?php endif; ?>
                     </div>
                     <div class="small text-body-secondary mb-3"><?= e($r['category']) ?> · <i class="bi bi-geo-alt"></i> <?= e($r['location']) ?></div>
                     <div class="d-flex gap-3 small mb-3">

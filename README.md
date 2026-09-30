@@ -20,7 +20,8 @@ Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan d
 ### Untuk pentadbir
 - **Papan pemuka** dengan statistik, tempahan menunggu kelulusan (lulus dengan satu klik) dan carta trend.
 - **Rekod tempahan**: tapisan tarikh, bilik, guru dan status; lulus/tolak/batal secara pukal; **eksport CSV** (boleh dibuka dalam Excel); cetak.
-- **Urus bilik khas**: kod, kategori, lokasi, kapasiti, kemudahan, warna, PIC dan status (Aktif / Penyelenggaraan / Tidak Aktif). Setiap bilik boleh ditetapkan sama ada **perlu kelulusan** atau diluluskan secara automatik.
+- **Mod kelulusan** (di Tetapan Sistem): **Lulus automatik** (lalai: tempahan terus diluluskan jika tiada pertindihan), **Semua perlu kelulusan**, atau **Ikut tetapan bilik**. Tempahan bertindih sentiasa disekat dalam semua mod.
+- **Urus bilik khas**: kod, kategori, lokasi, kapasiti, kemudahan, warna, PIC dan status (Aktif / Penyelenggaraan / Tidak Aktif). Setiap bilik boleh ditanda **perlu kelulusan**, yang berkuat kuasa dalam mod "Ikut tetapan bilik".
 - **Urus pengguna**: tambah, import pukal (tampal senarai), sahkan pendaftaran, set semula kata laluan, nyahaktif.
 - **Penutupan & cuti**: tutup satu bilik atau semua bilik untuk tempoh tertentu. Ada pilihan untuk membatalkan tempahan terjejas dan memaklumkan guru.
 - **Waktu persekolahan**: ubah suai senarai waktu (Waktu 1, Rehat, dan seterusnya).

@@ -149,6 +149,7 @@ function seed(PDO $pdo): void
         'email_domain'        => '',
         'public_display'      => '1',
         'cancel_cutoff_hours' => '0',
+        'approval_mode'       => 'auto',
     ];
     $st = $pdo->prepare('INSERT INTO settings(key, value) VALUES (?, ?)');
     foreach ($settings as $k => $v) {
