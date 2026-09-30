@@ -1,5 +1,9 @@
 # Sistem Tempahan Bilik Khas
 
+> **Dua versi tersedia dalam repo ini:**
+> - **Versi PHP** (folder root, dokumen ini) — untuk hosting cPanel / PC sekolah.
+> - **Versi Google Apps Script** ([`firebase-gas/`](firebase-gas/README.md)) — percuma, deploy terus dalam GAS (atau Firebase Hosting), data dalam Google Sheets, guru log masuk dengan memilih nama + No. KP.
+
 Sistem web untuk guru menempah bilik khas sekolah (makmal, bilik tayang, pusat sumber, dewan dan lain-lain). Sistem ini menghalang tempahan bertindih secara automatik, dan pentadbir boleh mengurus semua rekod dari satu papan pemuka.
 
 Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan diperlukan. Semua pustaka frontend (Bootstrap 5, FullCalendar, Chart.js, ikon dan fon) disimpan dalam `assets/vendor`, jadi sistem boleh berjalan di rangkaian dalaman sekolah tanpa akses Internet.
@@ -20,11 +24,13 @@ Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan d
 ### Untuk pentadbir
 - **Papan pemuka** dengan statistik, tempahan menunggu kelulusan (lulus dengan satu klik) dan carta trend.
 - **Rekod tempahan**: tapisan tarikh, bilik, guru dan status; lulus/tolak/batal secara pukal; **eksport CSV** (boleh dibuka dalam Excel); cetak.
-- **Urus bilik khas**: kod, kategori, lokasi, kapasiti, kemudahan, warna, PIC dan status (Aktif / Penyelenggaraan / Tidak Aktif). Setiap bilik boleh ditetapkan sama ada **perlu kelulusan** atau diluluskan secara automatik.
+- **Mod kelulusan** (di Tetapan Sistem): **Lulus automatik** (lalai: tempahan terus diluluskan jika tiada pertindihan), **Semua perlu kelulusan**, atau **Ikut tetapan bilik**. Tempahan bertindih sentiasa disekat dalam semua mod.
+- **Urus bilik khas**: kod, kategori, lokasi, kapasiti, kemudahan, warna, PIC dan status (Aktif / Penyelenggaraan / Tidak Aktif). Setiap bilik boleh ditanda **perlu kelulusan**, yang berkuat kuasa dalam mod "Ikut tetapan bilik".
 - **Urus pengguna**: tambah, import pukal (tampal senarai), sahkan pendaftaran, set semula kata laluan, nyahaktif.
 - **Penutupan & cuti**: tutup satu bilik atau semua bilik untuk tempoh tertentu. Ada pilihan untuk membatalkan tempahan terjejas dan memaklumkan guru.
 - **Waktu persekolahan**: ubah suai senarai waktu (Waktu 1, Rehat, dan seterusnya).
 - **Laporan & analitik**: kadar penggunaan setiap bilik, jumlah jam, hari dan waktu paling popular, dan pengguna paling aktif.
+- **Logo sekolah**: muat naik di Tetapan Sistem. Logo dikecilkan secara automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan, paparan TV dan favicon.
 - **Tetapan**: nama sekolah, waktu operasi, had tempah awal, tempoh maksimum, hujung minggu, pendaftaran sendiri (dengan had domain e-mel) dan had masa pembatalan.
 - **Log audit** untuk semua aktiviti penting.
 - **Paparan skrin TV** (`index.php?p=display`): jadual hari ini untuk bilik guru atau lobi, dengan kemas kini automatik.

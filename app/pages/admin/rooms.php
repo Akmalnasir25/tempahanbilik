@@ -107,6 +107,9 @@ page_title('Urus Bilik Khas', 'Tambah, kemas kini dan tetapkan status bilik khas
                             <input class="form-check-input" type="checkbox" role="switch" name="requires_approval" id="ra" value="1" <?= $form['requires_approval'] ? 'checked' : '' ?>>
                             <label class="form-check-label" for="ra"><strong>Perlu kelulusan pentadbir</strong> <span class="text-body-secondary small">— tempahan guru akan berstatus "Menunggu" sehingga diluluskan</span></label>
                         </div>
+                        <?php if (setting('approval_mode', 'auto') !== 'room'): ?>
+                            <div class="form-text"><i class="bi bi-info-circle me-1"></i>Mod kelulusan semasa ialah <strong><?= e(APPROVAL_MODES[setting('approval_mode', 'auto')][0]) ?></strong>, jadi tetapan ini hanya berkuat kuasa jika mod ditukar kepada "Ikut tetapan bilik" di <a href="<?= url('admin/settings') ?>">Tetapan Sistem</a>.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="mt-4 d-flex gap-2">
@@ -129,7 +132,7 @@ page_title('Urus Bilik Khas', 'Tambah, kemas kini dan tetapkan status bilik khas
                     <td class="small"><?= e($r['category']) ?></td>
                     <td class="small"><?= e($r['location']) ?></td>
                     <td class="text-center"><?= (int) $r['capacity'] ?></td>
-                    <td class="text-center"><?= $r['requires_approval'] ? '<i class="bi bi-shield-lock text-warning" title="Perlu kelulusan"></i>' : '<i class="bi bi-lightning-charge text-success" title="Automatik"></i>' ?></td>
+                    <td class="text-center"><?= room_needs_approval($r) ? '<i class="bi bi-shield-lock text-warning" title="Perlu kelulusan"></i>' : '<i class="bi bi-lightning-charge text-success" title="Automatik"></i>' ?></td>
                     <td class="text-center"><a href="<?= url('admin/bookings', ['room_id' => $r['id'], 'from' => date('Y-m-d')]) ?>"><?= (int) $r['upcoming'] ?></a></td>
                     <td><?= room_status_badge($r['status']) ?></td>
                     <td class="text-end text-nowrap">

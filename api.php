@@ -111,7 +111,7 @@ switch ($action) {
         json_response([
             'ok'       => !$errors,
             'errors'   => array_values(array_unique($errors)),
-            'approval' => (bool) $room['requires_approval'] && $user['role'] !== 'admin',
+            'approval' => room_needs_approval($room) && $user['role'] !== 'admin',
         ]);
 
     // Rooms that are free right now / at a given time

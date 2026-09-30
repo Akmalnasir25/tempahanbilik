@@ -34,7 +34,11 @@ function head_tags(string $title): void
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title) ?> · <?= e(setting('system_name', 'Tempahan Bilik')) ?></title>
+    <?php if ($logo = logo_url()): ?>
+    <link rel="icon" href="<?= e($logo) ?>">
+    <?php else: ?>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231e3a8a'/><path d='M9 23V9h9a5 5 0 010 10h-9' fill='none' stroke='white' stroke-width='3'/><circle cx='22' cy='23' r='2.5' fill='%2360a5fa'/></svg>">
+    <?php endif; ?>
     <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
     <link href="assets/css/app.css?v=<?= APP_VERSION ?>" rel="stylesheet">
@@ -65,7 +69,7 @@ function render_header(string $title, string $active = '', array $opts = []): vo
 <body class="app" data-csrf="<?= e(csrf_token()) ?>">
 <aside class="sidebar" id="sidebar">
     <a href="<?= url('dashboard') ?>" class="brand">
-        <span class="brand-logo"><i class="bi bi-buildings"></i></span>
+        <?= brand_logo() ?>
         <span class="brand-text">
             <strong><?= e(setting('system_name')) ?></strong>
             <small><?= e(setting('school_name')) ?></small>

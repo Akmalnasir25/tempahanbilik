@@ -9,6 +9,7 @@ $routes = [
     'register'       => ['register.php', 'guest'],
     'logout'         => ['logout.php', 'public'],
     'display'        => ['display.php', 'public'],
+    'logo'           => ['logo.php', 'public'],
     'dashboard'      => ['dashboard.php', 'user'],
     'book'           => ['book.php', 'user'],
     'availability'   => ['availability.php', 'user'],

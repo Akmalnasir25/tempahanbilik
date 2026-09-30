@@ -1,7 +1,7 @@
 <?php
 // Router for PHP's built-in server:  php -S localhost:8000 router.php
 $path = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/');
-if (preg_match('#^/(app|data)(/|$)|/\.|\.(sqlite|md)$|^/(config|router)\.php$#i', $path)) {
+if (preg_match('#^/(app|data|firebase-gas)(/|$)|/\.|\.(sqlite|md)$|^/(config|router)\.php$#i', $path)) {
     http_response_code(403);
     exit('403 Forbidden');
 }

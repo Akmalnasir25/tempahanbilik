@@ -24,7 +24,7 @@ foreach ($bookings as $b) {
 <body class="display-board">
 <header class="db-head">
     <div class="d-flex align-items-center gap-3">
-        <span class="brand-logo lg"><i class="bi bi-buildings"></i></span>
+        <?= brand_logo('lg') ?>
         <div>
             <div class="fs-4 fw-bold">Jadual Bilik Khas Hari Ini</div>
             <div class="opacity-75"><?= e(setting('school_name')) ?></div>

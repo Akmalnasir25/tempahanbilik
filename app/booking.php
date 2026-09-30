@@ -8,6 +8,22 @@ declare(strict_types=1);
 
 const BLOCKING_STATUSES = "('pending','approved')";
 
+const APPROVAL_MODES = [
+    'auto'   => ['Lulus automatik', 'Tempahan terus diluluskan jika tiada pertindihan.'],
+    'manual' => ['Semua perlu kelulusan', 'Setiap tempahan guru menunggu kelulusan pentadbir.'],
+    'room'   => ['Ikut tetapan bilik', 'Hanya bilik yang ditanda "Perlu kelulusan" memerlukan kelulusan pentadbir.'],
+];
+
+/** Whether a teacher's booking for this room must wait for admin approval. */
+function room_needs_approval(array $room): bool
+{
+    return match (setting('approval_mode', 'auto')) {
+        'manual' => true,
+        'room'   => (bool) $room['requires_approval'],
+        default  => false,
+    };
+}
+
 function find_conflicts(int $roomId, string $date, string $start, string $end, ?int $excludeId = null): array
 {
     $sql = 'SELECT b.*, u.name AS user_name FROM bookings b JOIN users u ON u.id = b.user_id
@@ -144,7 +160,8 @@ function create_booking(array $data, array $user): array
         $dates[] = date('Y-m-d', strtotime($data['date'] . " +{$i} week"));
     }
 
-    $status = ($room['requires_approval'] && $user['role'] !== 'admin') ? 'pending' : 'approved';
+    $needsApproval = room_needs_approval($room);
+    $status = ($needsApproval && $user['role'] !== 'admin') ? 'pending' : 'approved';
     $seriesId = $weeks > 1 ? bin2hex(random_bytes(6)) : null;
 
     $pdo->exec('BEGIN IMMEDIATE');
@@ -171,8 +188,8 @@ function create_booking(array $data, array $user): array
                 $attendees,
                 trim((string) ($data['notes'] ?? '')) ?: null,
                 $status, $seriesId,
-                $status === 'approved' && $room['requires_approval'] ? $user['id'] : null,
-                $status === 'approved' && $room['requires_approval'] ? date('Y-m-d H:i:s') : null,
+                $status === 'approved' && $needsApproval ? $user['id'] : null,
+                $status === 'approved' && $needsApproval ? date('Y-m-d H:i:s') : null,
             ]);
             $ids[] = (int) $pdo->lastInsertId();
         }
@@ -217,9 +234,9 @@ function update_booking(array $booking, array $data, array $user): array
         $slotChanged = $room['id'] != $booking['room_id'] || $data['date'] !== $booking['date']
             || $data['start_time'] !== $booking['start_time'] || $data['end_time'] !== $booking['end_time'];
         $status = $booking['status'];
-        if ($user['role'] !== 'admin' && $room['requires_approval'] && $slotChanged) {
+        if ($user['role'] !== 'admin' && room_needs_approval($room) && $slotChanged) {
             $status = 'pending';
-        } elseif (!$room['requires_approval']) {
+        } elseif (!room_needs_approval($room)) {
             $status = 'approved';
         }
         $pdo->prepare("UPDATE bookings SET room_id=?, date=?, start_time=?, end_time=?, purpose=?, class_name=?, subject=?, attendees=?, notes=?, status=?, updated_at=datetime('now','localtime') WHERE id=?")

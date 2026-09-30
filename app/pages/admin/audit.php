@@ -21,6 +21,7 @@ $labels = [
     'booking.create' => ['Tempahan baharu', 'plus-circle', 'primary'], 'booking.update' => ['Tempahan dipinda', 'pencil', 'primary'],
     'booking.approved' => ['Diluluskan', 'check-circle', 'success'], 'booking.rejected' => ['Ditolak', 'x-circle', 'danger'],
     'booking.cancelled' => ['Dibatalkan', 'slash-circle', 'secondary'],
+    'settings.logo' => ['Logo sekolah', 'image', 'primary'],
 ];
 
 render_header('Log Audit', 'admin/audit');

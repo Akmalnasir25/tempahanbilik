@@ -64,7 +64,7 @@ $periods = all_periods();
 $maxDate = is_admin() ? '' : date('Y-m-d', strtotime('+' . (int) setting('max_advance_days', '60') . ' days'));
 $roomsJs = array_map(fn($r) => [
     'id' => (int) $r['id'], 'name' => $r['name'], 'code' => $r['code'], 'location' => $r['location'], 'capacity' => (int) $r['capacity'],
-    'facilities' => $r['facilities'], 'color' => $r['color'], 'approval' => (bool) $r['requires_approval'], 'pic' => $r['pic_name'],
+    'facilities' => $r['facilities'], 'color' => $r['color'], 'approval' => room_needs_approval($r), 'pic' => $r['pic_name'],
 ], $rooms);
 
 render_header($editing ? 'Pinda Tempahan' : 'Tempah Bilik', 'book');
@@ -94,7 +94,7 @@ page_title($editing ? 'Pinda Tempahan ' . $editing['ref_no'] : 'Tempah Bilik Kha
                                     <optgroup label="<?= e($cat) ?>">
                                         <?php foreach ($list as $r): ?>
                                             <option value="<?= $r['id'] ?>" <?= (string) $data['room_id'] === (string) $r['id'] ? 'selected' : '' ?>>
-                                                <?= e($r['name']) ?> (<?= (int) $r['capacity'] ?> orang)<?= $r['requires_approval'] ? ' — perlu kelulusan' : '' ?>
+                                                <?= e($r['name']) ?> (<?= (int) $r['capacity'] ?> orang)<?= room_needs_approval($r) ? ' — perlu kelulusan' : '' ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </optgroup>

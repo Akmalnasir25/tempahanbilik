@@ -46,7 +46,7 @@ render_guest_header('Daftar Akaun');
     <section class="auth-hero">
         <div class="auth-hero-inner">
             <div class="d-flex align-items-center gap-3 mb-5">
-                <span class="brand-logo lg"><i class="bi bi-buildings"></i></span>
+                <?= brand_logo('lg') ?>
                 <div>
                     <div class="fw-bold fs-5"><?= e(setting('system_name')) ?></div>
                     <div class="opacity-75 small"><?= e(setting('school_name')) ?></div>
