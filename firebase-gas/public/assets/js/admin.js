@@ -163,10 +163,16 @@
                     '<div class="col-md-4"><label class="form-label fw-semibold">Peranan</label><select name="role" class="form-select">' + opt('guru', 'Guru', form.role) + opt('admin', 'Pentadbir', form.role) + '</select></div>' +
                     '<div class="col-md-4"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="phone" value="' + esc(form.phone) + '"></div>' +
                     '<div class="col-md-4"><label class="form-label fw-semibold">E-mel <span class="fw-normal text-body-secondary">(pilihan, untuk notifikasi)</span></label><input type="email" class="form-control" name="email" value="' + esc(form.email) + '"></div></div>' +
-                    '<div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Tiada kata laluan perlu ditetapkan. Kali pertama log masuk, guru memilih nama ini dan mendaftarkan No. Kad Pengenalan sendiri sebagai kata laluan.</div>' +
+                    '<div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Tiada kata laluan perlu ditetapkan. Kali pertama log masuk, guru memilih nama ini dan mendaftarkan No. Kad Pengenalan sendiri sebagai kata laluan. Anda kemudian mengesahkan akaun tersebut.</div>' +
                     '<div class="mt-3 d-flex gap-2"><button class="btn btn-primary px-4">Simpan</button><a href="#/admin/users" class="btn btn-light">Batal</a></div></form></div></div>';
             }
             var tabs = { '': 'Semua', active: 'Aktif', pending: 'Menunggu Pengesahan', inactive: 'Tidak Aktif' };
+            if (counts.pending) {
+                h += '<div class="alert alert-warning d-flex flex-wrap gap-2 align-items-center justify-content-between"><div><i class="bi bi-shield-exclamation me-1"></i><strong>' + counts.pending + ' akaun menunggu pengesahan.</strong> ' +
+                    'Sahkan hanya jika anda pasti guru itu sendiri yang mendaftar. Jika ragu-ragu, klik <strong>Tolak</strong>: guru boleh mendaftar semula No. KP.</div>' +
+                    '<div class="d-flex gap-2">' + (status !== 'pending' ? '<a class="btn btn-sm btn-light" href="' + A.link('admin/users', { status: 'pending' }) + '">Lihat senarai</a>' : '') +
+                    '<button class="btn btn-sm btn-success" id="approveAll"><i class="bi bi-check2-all me-1"></i>Sahkan semua (' + counts.pending + ')</button></div></div>';
+            }
             h += '<div class="card"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><ul class="nav nav-pills nav-pills-soft">' +
                 Object.keys(tabs).map(function (k) { return '<li class="nav-item"><a class="nav-link' + (status === k ? ' active' : '') + '" href="' + A.link('admin/users', { status: k }) + '">' + tabs[k] + ' <span class="badge rounded-pill">' + counts[k] + '</span></a></li>'; }).join('') +
                 '</ul><form id="userSearch"><div class="input-icon"><i class="bi bi-search"></i><input class="form-control form-control-sm" name="q" value="' + esc(p.q || '') + '" placeholder="Cari nama / e-mel…"></div></form></div>' +
@@ -177,8 +183,9 @@
                         return '<tr><td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm">' + esc(A.initials(u.name)) + '</span><div><div class="fw-semibold">' + esc(u.name) + (me ? ' <span class="xsmall text-body-secondary">(anda)</span>' : '') + '</div><div class="xsmall text-body-secondary">' + esc(u.email || '') + '</div></div></div></td>' +
                             '<td class="small">' + esc(u.department || '-') + '</td><td>' + (u.role === 'admin' ? '<span class="badge badge-soft-primary">Pentadbir</span>' : '<span class="badge badge-soft-secondary">Guru</span>') + '</td>' +
                             '<td class="text-center"><a href="' + A.link('admin/bookings', { user_id: u.id }) + '">' + u.bookings + '</a></td>' +
-                            '<td>' + (u.activated ? '<span class="badge badge-soft-success"><i class="bi bi-key me-1"></i>Sudah daftar</span>' : '<span class="badge badge-soft-secondary">Belum daftar</span>') + '</td><td class="small">' + (u.last_login_at ? A.fmtDateTime(u.last_login_at) : '<span class="text-body-tertiary">Belum pernah</span>') + '</td><td>' + st + '</td>' +
-                            '<td class="text-end text-nowrap">' + (u.status === 'pending' ? '<button class="btn btn-sm btn-success" data-status="active" data-id="' + u.id + '"><i class="bi bi-check-lg me-1"></i>Sahkan</button> ' : '') +
+                            '<td>' + (u.activated ? '<span class="badge badge-soft-success"><i class="bi bi-key me-1"></i>Sudah daftar</span>' + (u.status === 'pending' && u.activated_at ? '<div class="xsmall text-body-secondary mt-1">' + A.fmtDateTime(u.activated_at) + '</div>' : '') : '<span class="badge badge-soft-secondary">Belum daftar</span>') + '</td><td class="small">' + (u.last_login_at ? A.fmtDateTime(u.last_login_at) : '<span class="text-body-tertiary">Belum pernah</span>') + '</td><td>' + st + '</td>' +
+                            '<td class="text-end text-nowrap">' + (u.status === 'pending' ? '<button class="btn btn-sm btn-success" data-status="active" data-id="' + u.id + '"><i class="bi bi-check-lg me-1"></i>Sahkan</button> ' +
+                                '<button class="btn btn-sm btn-outline-danger" data-reject="' + u.id + '" data-name="' + esc(u.name) + '" data-activation="' + (u.activated_at ? 1 : 0) + '"><i class="bi bi-x-lg me-1"></i>Tolak</button> ' : '') +
                             '<div class="dropdown d-inline"><button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end shadow">' +
                             '<li><a class="dropdown-item" href="' + A.link('admin/users', { edit: u.id }) + '"><i class="bi bi-pencil me-2"></i>Kemas kini</a></li>' +
                             (u.activated && !me ? '<li><button class="dropdown-item" data-reset="' + u.id + '" data-name="' + esc(u.name) + '"><i class="bi bi-key me-2"></i>Set semula kata laluan</button></li>' : '') +
@@ -215,9 +222,24 @@
                     A.api('admin.users.setStatus', { id: +btn.dataset.id, status: btn.dataset.status }).then(function () { A.toast('Status akaun dikemas kini.'); A.reload(); }).catch(A.showError);
                 };
             });
+            var all = $('#approveAll');
+            if (all) all.onclick = function () {
+                A.confirm('Sahkan semua ' + counts.pending + ' akaun yang menunggu? Pastikan semua nama dalam senarai memang guru yang dijangka mendaftar.', { btnClass: 'btn-success' }).then(function (ok) {
+                    if (ok) A.api('admin.users.approveAll', {}).then(function (r) { A.toast(r.approved + ' akaun disahkan.'); A.reload(); }).catch(A.showError);
+                });
+            };
+            $$('[data-reject]', ctx.view).forEach(function (btn) {
+                btn.onclick = function () {
+                    var act = btn.dataset.activation === '1';
+                    A.confirm(act ? 'Tolak pendaftaran No. KP untuk ' + btn.dataset.name + '? No. KP yang didaftarkan dibuang dan guru sebenar boleh mendaftar semula.'
+                        : 'Tolak permohonan akaun ' + btn.dataset.name + '?').then(function (ok) {
+                        if (ok) A.api('admin.users.reject', { id: +btn.dataset.reject }).then(function () { A.toast('Pendaftaran ' + btn.dataset.name + ' ditolak.'); A.reload(); }).catch(A.showError);
+                    });
+                };
+            });
             $$('[data-reset]', ctx.view).forEach(function (btn) {
                 btn.onclick = function () {
-                    A.confirm('Set semula kata laluan ' + btn.dataset.name + '? Guru perlu mendaftarkan No. KP sebagai kata laluan semula pada log masuk seterusnya.', { btnClass: 'btn-primary' }).then(function (ok) {
+                    A.confirm('Set semula kata laluan ' + btn.dataset.name + '? Guru perlu mendaftarkan No. KP semula pada log masuk seterusnya, dan anda perlu mengesahkannya.', { btnClass: 'btn-primary' }).then(function (ok) {
                         if (ok) A.api('admin.users.resetPassword', { id: +btn.dataset.reset }).then(function () { A.toast('Kata laluan ' + btn.dataset.name + ' telah ditetapkan semula.'); A.reload(); }).catch(A.showError);
                     });
                 };

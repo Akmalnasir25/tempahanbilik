@@ -24,7 +24,7 @@ platform_header('Sekolah', 'schools');
             <h2 class="h5 fw-bold text-success"><i class="bi bi-check-circle me-1"></i><?= e($credentials['name']) ?> berjaya dicipta</h2>
             <p class="mb-2">Hantar maklumat ini kepada admin sekolah. Kata laluan tidak akan dipaparkan lagi, dan admin akan diminta menukarnya semasa log masuk pertama.</p>
             <div class="bg-body-tertiary rounded p-3 font-monospace small user-select-all" style="white-space: pre-line">Pautan sistem: <?= e($credentials['url']) ?>
-Kod sekolah: <?= e($credentials['slug']) ?>
+Kod sekolah: <?= e(strtoupper($credentials['slug'])) ?>
 <?php if ($credentials['email']): ?>E-mel admin: <?= e($credentials['email']) ?>
 Kata laluan sementara: <?= e($credentials['password']) ?><?php else: ?>Data sedia ada diimport (gunakan akaun admin yang sedia ada).<?php endif; ?></div>
         </div>
@@ -63,8 +63,8 @@ Kata laluan sementara: <?= e($credentials['password']) ?><?php else: ?>Data sedi
                 <tbody>
                 <?php foreach ($rows as $r): $st = $r['stats']; ?>
                     <tr>
-                        <td><strong><?= e($r['name']) ?></strong><div class="xsmall text-body-secondary"><?= e($r['school_code'] ?: '-') ?> · <?= human_size($st['size']) ?></div></td>
-                        <td><a href="<?= e(school_url($r['slug'])) ?>" target="_blank" class="school-link"><?= e('/' . $r['slug']) ?> <i class="bi bi-box-arrow-up-right"></i></a></td>
+                        <td><strong><?= e($r['name']) ?></strong><div class="xsmall text-body-secondary"><?= human_size($st['size']) ?></div></td>
+                        <td><span class="school-link fw-semibold"><?= e(strtoupper($r['slug'])) ?></span></td>
                         <td class="text-center"><?= $st['users'] ?><?= $st['teachers_pending'] ? ' <span class="badge badge-soft-warning" title="Menunggu pengesahan">+' . $st['teachers_pending'] . '</span>' : '' ?></td>
                         <td class="text-center"><?= $st['rooms'] ?></td>
                         <td class="text-center"><?= $st['bookings'] ?> <span class="text-body-secondary">(<?= $st['month'] ?>)</span></td>

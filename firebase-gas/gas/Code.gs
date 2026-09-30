@@ -25,7 +25,8 @@ var MAX_FAILS = 5;
 
 var SCHEMA = {
   Settings: ['key', 'value'],
-  Users: ['id', 'name', 'password_hash', 'email', 'phone', 'department', 'role', 'status', 'created_at', 'last_login_at'],
+  // activated_at: set when a teacher registers their IC on first login; the account then waits for admin approval.
+  Users: ['id', 'name', 'password_hash', 'email', 'phone', 'department', 'role', 'status', 'created_at', 'last_login_at', 'activated_at'],
   Sessions: ['token_hash', 'user_id', 'expires_at', 'created_at'],
   Rooms: ['id', 'code', 'name', 'category', 'location', 'capacity', 'facilities', 'description', 'pic_name', 'color', 'requires_approval', 'status', 'created_at'],
   Periods: ['id', 'label', 'start_time', 'end_time', 'is_break'],
@@ -332,7 +333,7 @@ function sessionUser_(token) {
 
 function userOut_(u) {
   return { id: u.id, name: u.name, email: u.email, phone: u.phone, department: u.department, role: u.role, status: u.status,
-    activated: !!u.password_hash, created_at: u.created_at, last_login_at: u.last_login_at };
+    activated: !!u.password_hash, activated_at: u.activated_at, created_at: u.created_at, last_login_at: u.last_login_at };
 }
 
 function meta_(user) {
@@ -730,8 +731,8 @@ function publicSettings_() {
 /* ---------- Public ---------- */
 action_('config', { auth: false }, function () {
   var s = publicSettings_();
-  var teachers = T('Users').rows().filter(function (u) { return u.status === 'active'; })
-    .map(function (u) { return { id: u.id, name: u.name, department: u.department, activated: !!u.password_hash }; })
+  var teachers = T('Users').rows().filter(function (u) { return u.status === 'active' || (u.status === 'pending' && u.activated_at); })
+    .map(function (u) { return { id: u.id, name: u.name, department: u.department, activated: !!u.password_hash, pending: u.status === 'pending' }; })
     .sort(function (a, b) { return a.name.localeCompare(b.name); });
   return { school: _currentSchoolSlug, system_name: s.system_name, school_name: s.school_name, allow_registration: s.allow_registration, teachers: teachers, logo: logo_(),
     rooms: T('Rooms').rows().filter(function (r) { return r.status === 'active'; }).length };
@@ -754,6 +755,7 @@ action_('display', { auth: false }, function () {
 /* ---------- Log masuk ---------- */
 action_('login', { auth: false, write: true }, function (d) {
   var u = T('Users').find(d.user_id);
+  if (u && u.status === 'pending') throw apiError_('PENDING', 'Akaun anda sedang menunggu pengesahan pentadbir sekolah.');
   if (!u || u.status !== 'active') throw apiError_('VALIDATION', 'Sila pilih nama anda daripada senarai.');
   if (!u.password_hash) throw apiError_('NOT_ACTIVATED', 'Ini log masuk kali pertama anda. Sila daftarkan No. KP anda sebagai kata laluan.');
   throttle_(u.id);
@@ -773,9 +775,12 @@ action_('activate', { auth: false, write: true }, function (d) {
   var ic = normIc_(d.ic);
   if (!validIc_(ic)) throw apiError_('VALIDATION', 'No. Kad Pengenalan mestilah 12 digit.');
   if (normIc_(d.ic_confirm) !== ic) throw apiError_('VALIDATION', 'Pengesahan No. KP tidak sepadan.');
-  T('Users').update(u, { password_hash: hashSecret_(ic) });
-  audit_({ user: u }, 'auth.activate', 'No. KP didaftarkan sebagai kata laluan');
-  return { token: createSession_(u, !!d.remember) };
+  // The school code is public, so anyone could pick a name that has not been activated yet.
+  // The account therefore waits for the school admin to confirm it is really this teacher.
+  T('Users').update(u, { password_hash: hashSecret_(ic), status: 'pending', activated_at: nowStamp_() });
+  audit_({ user: u }, 'auth.activate', 'No. KP didaftarkan; menunggu pengesahan pentadbir');
+  notifyAdmins_('Log masuk kali pertama – perlu pengesahan', u.name + ' telah mendaftarkan No. KP dan menunggu pengesahan anda.', '#/admin/users?status=pending');
+  return { status: 'pending' };
 });
 
 action_('register', { auth: false, write: true }, function (d) {
@@ -1225,14 +1230,38 @@ action_('admin.users.setStatus', { admin: true, write: true }, function (d, ctx)
   var wasPending = u.status === 'pending';
   T('Users').update(u, { status: status });
   audit_(ctx, 'user.' + status, u.name);
-  if (status === 'active' && wasPending) notify_(u.id, 'Akaun anda telah diaktifkan', 'Selamat datang! Anda kini boleh membuat tempahan bilik khas.', '#/book');
+  if (status === 'active' && wasPending) notify_(u.id, 'Akaun anda telah disahkan', 'Selamat datang! Anda kini boleh membuat tempahan bilik khas.', '#/book');
   return true;
+});
+
+action_('admin.users.reject', { admin: true, write: true }, function (d, ctx) {
+  var u = T('Users').find(d.id);
+  if (!u || u.status !== 'pending') throw apiError_('NOT_FOUND', 'Permohonan tidak dijumpai.');
+  if (u.activated_at) {
+    // First login by a teacher the admin registered: undo it so the real teacher can register again.
+    T('Users').update(u, { password_hash: '', activated_at: '', status: 'active' });
+    audit_(ctx, 'user.reject_activation', u.name);
+  } else {
+    T('Users').update(u, { status: 'inactive' });
+    audit_(ctx, 'user.reject', u.name);
+  }
+  return true;
+});
+
+action_('admin.users.approveAll', { admin: true, write: true }, function (d, ctx) {
+  var list = T('Users').rows().filter(function (u) { return u.status === 'pending'; });
+  list.forEach(function (u) {
+    T('Users').update(u, { status: 'active' });
+    notify_(u.id, 'Akaun anda telah disahkan', 'Selamat datang! Anda kini boleh log masuk dan membuat tempahan bilik khas.', '#/book');
+  });
+  audit_(ctx, 'user.approve_all', list.length + ' pengguna');
+  return { approved: list.length };
 });
 
 action_('admin.users.resetPassword', { admin: true, write: true }, function (d, ctx) {
   var u = T('Users').find(d.id);
   if (!u) throw apiError_('NOT_FOUND', 'Pengguna tidak dijumpai.');
-  T('Users').update(u, { password_hash: '' });
+  T('Users').update(u, { password_hash: '', activated_at: '' });
   T('Sessions').rows().filter(function (s) { return s.user_id === u.id; }).sort(function (a, b) { return b._row - a._row; })
     .forEach(function (s) { T('Sessions').sheet.deleteRow(s._row); });
   T('Sessions')._rows = null;
@@ -1434,7 +1463,8 @@ function platformSession_(admin) {
 }
 
 function schoolUrl_(slug) {
-  return CONFIG.WEB_URL ? CONFIG.WEB_URL.replace(/\/$/, '') + '/' + slug : ScriptApp.getService().getUrl() + '?s=' + slug;
+  // One address for every school: teachers type their KPM school code once per device.
+  return CONFIG.WEB_URL ? CONFIG.WEB_URL.replace(/\/$/, '') + '/' : ScriptApp.getService().getUrl();
 }
 
 function randomPassword_() {
@@ -1534,10 +1564,11 @@ action_('platform.school.get', { platform: true }, function (d) {
 });
 
 action_('platform.school.create', { platform: true, write: true }, function (d, ctx) {
+  // The KPM school code (e.g. PEA1234) identifies the school; stored in lower case.
   var slug = String(d.slug || '').trim().toLowerCase();
   var name = String(d.name || '').trim();
-  if (!validSlug_(slug)) throw apiError_('VALIDATION', 'Kod pautan mestilah 3–30 aksara: huruf kecil, nombor dan sengkang (cth. smkabc), dan bukan perkataan simpanan sistem.');
-  if (PT('Schools').rows().some(function (s) { return String(s.slug).toLowerCase() === slug; })) throw apiError_('VALIDATION', 'Kod pautan "' + slug + '" sudah digunakan.');
+  if (!validSlug_(slug)) throw apiError_('VALIDATION', 'Kod sekolah mestilah 3–30 aksara: huruf, nombor dan sengkang sahaja (cth. PEA1234).');
+  if (PT('Schools').rows().some(function (s) { return String(s.slug).toLowerCase() === slug; })) throw apiError_('VALIDATION', 'Kod sekolah ' + slug.toUpperCase() + ' sudah didaftarkan.');
   if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama sekolah.');
   var adoptId = spreadsheetIdFrom_(d.adopt_sheet);
   var adminName = String(d.admin_name || '').trim();
@@ -1556,9 +1587,9 @@ action_('platform.school.create', { platform: true, write: true }, function (d, 
   useSchoolSs_(ss);
   _currentSchoolSlug = slug;
   var hasAdmin = adoptId && ss.getSheetByName('Users') && T('Users').rows().some(function (u) { return u.role === 'admin'; });
-  setupSchool_({ name: name, school_code: String(d.school_code || '').trim(), admin_name: hasAdmin ? '' : (adminName || 'Pentadbir Sekolah'), admin_password: password });
+  setupSchool_({ name: name, school_code: slug.toUpperCase(), admin_name: hasAdmin ? '' : (adminName || 'Pentadbir Sekolah'), admin_password: password });
 
-  var school = PT('Schools').insert({ slug: slug, name: name, school_code: String(d.school_code || '').trim(), spreadsheet_id: ss.getId(), status: 'active',
+  var school = PT('Schools').insert({ slug: slug, name: name, school_code: slug.toUpperCase(), spreadsheet_id: ss.getId(), status: 'active',
     contact_name: String(d.contact_name || '').trim(), contact_phone: String(d.contact_phone || '').trim(), notes: String(d.notes || '').trim(), created_at: nowStamp_() });
   platformAudit_(ctx.admin, 'school.create', slug + ' – ' + name + (adoptId ? ' (Google Sheet sedia ada)' : ''));
   var out = schoolOut_(school, false);
@@ -1572,7 +1603,7 @@ action_('platform.school.update', { platform: true, write: true }, function (d, 
   if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
   var name = String(d.name || '').trim();
   if (name.length < 3) throw apiError_('VALIDATION', 'Sila masukkan nama sekolah.');
-  PT('Schools').update(s, { name: name, school_code: String(d.school_code || '').trim(), contact_name: String(d.contact_name || '').trim(),
+  PT('Schools').update(s, { name: name, contact_name: String(d.contact_name || '').trim(),
     contact_phone: String(d.contact_phone || '').trim(), notes: String(d.notes || '').trim() });
   platformAudit_(ctx.admin, 'school.update', s.slug);
   return schoolOut_(s, false);
@@ -1612,7 +1643,7 @@ action_('platform.school.resetAdmin', { platform: true, write: true }, function 
 action_('platform.school.delete', { platform: true, write: true }, function (d, ctx) {
   var s = PT('Schools').find(d.id);
   if (!s) throw apiError_('NOT_FOUND', 'Sekolah tidak dijumpai.');
-  if (String(d.confirm_slug || '') !== s.slug) throw apiError_('VALIDATION', 'Kod pengesahan tidak sepadan. Sekolah tidak dipadam.');
+  if (String(d.confirm_slug || '').trim().toLowerCase() !== String(s.slug).toLowerCase()) throw apiError_('VALIDATION', 'Kod pengesahan tidak sepadan. Sekolah tidak dipadam.');
   // The Google Sheet is kept (renamed) so data can be recovered by the owner.
   try { SpreadsheetApp.openById(s.spreadsheet_id).rename('[DIPADAM] ' + s.name + ' (' + s.slug + ')'); } catch (err) { /* sheet already gone */ }
   PT('Schools').remove(s);

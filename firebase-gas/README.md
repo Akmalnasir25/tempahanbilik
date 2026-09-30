@@ -10,28 +10,30 @@ Versi ini **percuma sepenuhnya** — tiada pelayan, tiada cPanel.
 ## Konsep banyak sekolah
 
 ```
-booking.akmalsys.com/            → Halaman utama: guru taip kod sekolah (senarai sekolah TIDAK dipaparkan)
-booking.akmalsys.com/smkabc      → Sistem SMK ABC (guru, admin & bilik SMK ABC sahaja)
-booking.akmalsys.com/skbukit     → Sistem SK Bukit (terpisah sepenuhnya)
+booking.akmalsys.com             → Satu alamat untuk semua sekolah:
+                                   masukkan kod sekolah KPM (cth. PEA1234) → Teruskan → pilih nama guru
 booking.akmalsys.com/platform    → Panel Super Admin (anda): cipta, gantung & urus sekolah
 ```
 
 - **Setiap sekolah mendapat Google Sheet sendiri**, dicipta automatik dalam Google Drive anda. Data sekolah tidak pernah bercampur.
 - **Log masuk, sesi dan kata laluan juga terpisah.** Token sekolah A ditolak di sekolah B.
 - **Daftar platform:** Google Sheet yang memiliki skrip menyimpan senarai sekolah, akaun Super Admin dan log audit.
-- **Sekolah terakhir diingati:** halaman utama mengingati sekolah terakhir di peranti itu, jadi guru hanya perlu taip kod sekali.
+- **Senarai nama guru hanya dipaparkan selepas kod sekolah yang betul dimasukkan.** Senarai sekolah tidak pernah dipaparkan.
+- **Sekolah diingati pada peranti:** guru hanya perlu taip kod sekali. Pautan **Tukar sekolah** di halaman log masuk membolehkan kod lain dimasukkan.
 
 ## Cara log masuk (guru & admin sekolah)
 
-1. Guru buka pautan sekolah masing-masing, contohnya `booking.akmalsys.com/smkabc`, atau taip kod sekolah di halaman utama.
+1. Guru buka `booking.akmalsys.com` dan masukkan kod sekolah KPM (sekali sahaja bagi setiap peranti).
 2. **Admin sekolah mendaftarkan nama guru sahaja**, satu per satu atau secara import pukal.
 3. Guru **pilih nama mereka dari dropdown**. Mereka boleh menaip untuk mencari nama.
 4. **Kali pertama:** guru **mendaftarkan No. Kad Pengenalan sendiri**.
    - No. KP mesti 12 digit dan ditaip dua kali.
    - No. KP ini menjadi kata laluan guru.
-5. **Seterusnya:** pilih nama dan masukkan No. KP. Sengkang dibenarkan, contohnya `900101-10-1234`.
-6. Guru boleh menukar kata laluan di **Profil Saya**.
-7. Jika guru lupa kata laluan, admin sekolah klik **Set semula kata laluan**. Guru mendaftarkan No. KP semula pada log masuk seterusnya.
+   - **Akaun kemudian menunggu pengesahan admin sekolah.** Ini menghalang orang luar yang tahu kod sekolah daripada mendaftar menggunakan nama guru lain.
+5. **Admin sekolah mengesahkan** di **Daftar & Urus Guru**: klik **Sahkan**, atau **Sahkan semua**. Jika pendaftaran mencurigakan, klik **Tolak**: No. KP itu dibuang dan guru sebenar boleh mendaftar semula.
+6. **Seterusnya:** pilih nama dan masukkan No. KP. Sengkang dibenarkan, contohnya `900101-10-1234`.
+7. Guru boleh menukar kata laluan di **Profil Saya**.
+8. Jika guru lupa kata laluan, admin sekolah klik **Set semula kata laluan**. Guru mendaftarkan No. KP semula, dan admin mengesahkannya sekali lagi.
 
 Keselamatan:
 - No. KP dan kata laluan disimpan sebagai cincangan bergaram (*salted hash*), bukan teks biasa.
@@ -54,10 +56,10 @@ Keselamatan:
    ```js
    var CONFIG = {
      PLATFORM_NAME: 'Sistem Tempahan Bilik Khas',
-     WEB_URL: 'https://booking.akmalsys.com',   // domain anda; pautan sekolah = WEB_URL/<kod>
+     WEB_URL: 'https://booking.akmalsys.com',   // alamat sistem (dipaparkan kepada admin sekolah & dalam e-mel)
    };
    ```
-   Jika tidak menggunakan domain sendiri, tetapkan `WEB_URL: ''`. Pautan sekolah akan menjadi `URL-web-app?s=<kod>`.
+   Jika tidak menggunakan domain sendiri, tetapkan `WEB_URL: ''`. URL Web App akan digunakan sebagai alamat sistem.
 8. Pilih fungsi **`setup`** dan klik **▶ Run**, kemudian benarkan akses apabila diminta. Kebenaran ini membolehkan skrip mencipta Google Sheet untuk setiap sekolah.
 9. Buka **Deploy → New deployment → ⚙️ Web app**, kemudian tetapkan:
    - *Execute as*: **Me**
@@ -87,7 +89,7 @@ Keselamatan:
    - Tunggu status bertukar menjadi *Connected*. Ini biasanya mengambil beberapa minit hingga beberapa jam.
    - SSL (https) disediakan secara percuma dan automatik.
 
-[`firebase.json`](firebase.json) sudah menghantar semua laluan (`/smkabc`, `/platform`) ke `index.html`. Laman kemudian membaca kod sekolah daripada URL.
+[`firebase.json`](firebase.json) sudah menghantar semua laluan (contohnya `/platform`) ke `index.html`.
 
 ## Langkah 3 — Super Admin & cipta sekolah
 
@@ -95,15 +97,16 @@ Keselamatan:
 2. **Kali pertama sahaja:** cipta akaun Super Admin anda. Kata laluan mesti sekurang-kurangnya 10 aksara.
 3. Klik **Tambah Sekolah** dan isi maklumat berikut:
    - Nama sekolah.
-   - **Kod pautan**, contohnya `smkabc`. Kod ini tidak boleh ditukar kemudian.
+   - **Kod sekolah KPM**, contohnya `PEA1234`. Kod ini tidak boleh ditukar kemudian.
    - Nama admin sekolah.
 4. Salin maklumat yang dipaparkan dan hantar kepada admin sekolah. Kata laluan sementara hanya dipaparkan **sekali**.
    ```
-   Pautan sistem: https://booking.akmalsys.com/smkabc
+   Pautan sistem: https://booking.akmalsys.com/
+   Kod sekolah: PEA1234
    Nama admin: Pn. Siti (Penyelaras ICT)
    Kata laluan sementara: xxxxxxxxxx
    ```
-5. Admin sekolah log masuk dan menukar kata laluan di **Profil Saya**. Selepas itu admin mendaftarkan guru dan bilik khas.
+5. Admin sekolah log masuk dan menukar kata laluan di **Profil Saya**. Selepas itu admin mendaftarkan guru dan bilik khas, dan mengesahkan guru selepas log masuk pertama mereka.
 
 Panel Super Admin juga boleh melakukan perkara berikut:
 - **Gantung atau aktifkan sekolah**, contohnya apabila langganan tamat. Pengguna sekolah itu akan melihat mesej "digantung".
@@ -156,6 +159,8 @@ Format: `Nama, Panitia (pilihan), E-mel (pilihan)`. E-mel hanya digunakan untuk 
 | Masalah | Penyelesaian |
 |---|---|
 | "Kod sekolah tidak dijumpai" | Semak ejaan kod, atau semak senarai di panel Super Admin |
+| Guru "menunggu pengesahan" | Admin sekolah klik **Sahkan** di **Daftar & Urus Guru** |
+| Guru kata "akaun sudah didaftarkan" tetapi bukan dia | Admin klik **Tolak** (jika masih menunggu) atau **Set semula kata laluan** |
 | Sekolah "digantung" | Aktifkan semula di panel Super Admin |
 | Admin sekolah lupa kata laluan | Panel Super Admin → Urus → **Set semula** |
 | Nama guru tiada dalam dropdown | Pastikan guru didaftarkan dan berstatus **Aktif** |

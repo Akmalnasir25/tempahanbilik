@@ -95,8 +95,9 @@ function current_school(): ?array
         return $school;
     }
     $school = null;
-    $requested = is_string($_GET['s'] ?? null) ? $_GET['s'] : ($_SESSION['school'] ?? '');
-    if ($requested !== '' && ($found = find_school((string) $requested))) {
+    // ?s= (code just typed, or an old link) wins; otherwise the school remembered in the session or on this device.
+    $requested = is_string($_GET['s'] ?? null) ? $_GET['s'] : ($_SESSION['school'] ?? ($_COOKIE['tb_school'] ?? ''));
+    if ($requested !== '' && ($found = find_school(strtolower(trim((string) $requested))))) {
         $school = $found;
         $_SESSION['school'] = $found['slug'];
     }
@@ -193,9 +194,10 @@ function platform_audit(string $action, string $details = ''): void
         ->execute([super_admin()['id'] ?? null, $action, $details, client_ip()]);
 }
 
-function school_url(string $slug): string
+/** The one address every school uses; teachers type their KPM school code there. */
+function school_url(string $slug = ''): string
 {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
     $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php')), '/');
-    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $base . '/' . $slug;
+    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $base . '/';
 }

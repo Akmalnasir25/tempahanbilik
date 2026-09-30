@@ -181,24 +181,30 @@ window.App = (function () {
      * otherwise fetch() to the Web App URL (e.g. from Firebase Hosting)
      * ------------------------------------------------------------------ */
     /* ------------------------------------------------------------------
-     * Which school is this? booking.akmalsys.com/<kod> on the web,
-     * or ?s=<kod> when the app is served straight from Apps Script.
+     * Which school is this? Everyone uses one address (booking.akmalsys.com);
+     * the KPM school code is typed once and remembered on the device.
      * ------------------------------------------------------------------ */
     var CFG = window.APP_CONFIG || {};
     var IN_GAS = !!(window.google && google.script && google.script.run);
-    var NOT_SCHOOL = { '': 1, 'index.html': 1, 'platform': 1, 'display.html': 1 };
+    var SCHOOL_KEY = 'tb-school';
+    function normCode(v) { return String(v || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, ''); }
+    function savedSchool() {
+        try { return JSON.parse(localStorage.getItem(SCHOOL_KEY) || 'null') || null; } catch (e) { return null; }
+    }
     function detectSchool() {
-        if (IN_GAS) return String(CFG.school || '').toLowerCase();
-        var seg = decodeURIComponent(location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || '').toLowerCase();
-        if (!NOT_SCHOOL[seg]) return seg;
-        var q = new URLSearchParams(location.search).get('s');
-        return q ? q.toLowerCase() : '';
+        // Older links (/<kod> or ?s=<kod>) still work once, then the address is tidied up.
+        var legacy = IN_GAS ? CFG.school : (new URLSearchParams(location.search).get('s') ||
+            (location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || ''));
+        legacy = normCode(legacy);
+        if (legacy && !/^(index\.html|platform|display\.html)$/.test(legacy)) {
+            if (!IN_GAS) history.replaceState(null, '', '/' + location.hash);
+            return legacy;
+        }
+        var saved = savedSchool();
+        return saved && saved.code ? normCode(saved.code) : '';
     }
     function isPlatformPage() {
         return IN_GAS ? !!CFG.platform : /^\/platform\/?$/.test(location.pathname);
-    }
-    function schoolLink(slug) {
-        return IN_GAS ? CFG.gasUrl + '?s=' + encodeURIComponent(slug) : '/' + encodeURIComponent(slug);
     }
     function homeLink() {
         return IN_GAS ? CFG.gasUrl : '/';
@@ -206,6 +212,15 @@ window.App = (function () {
     /** Navigate the whole window (the Apps Script app runs inside an iframe). */
     function goTop(url) {
         if (IN_GAS) window.open(url, '_top'); else location.href = url;
+    }
+    /** Forget the school on this device and go back to the code box. */
+    function switchSchool() {
+        try { localStorage.removeItem(SCHOOL_KEY); } catch (e) { /* ignore */ }
+        S.school = '';
+        S.user = null;
+        S.teachers = [];
+        document.getElementById('shell').hidden = true;
+        showLanding();
     }
     S.school = detectSchool();
 
@@ -321,8 +336,7 @@ window.App = (function () {
             '<p class="text-center xsmall mt-2 mb-0"><a href="#" id="switchSchool" class="text-body-secondary"><i class="bi bi-arrow-left-right me-1"></i>Bukan ' + esc(S.settings.school_name || 'sekolah ini') + '? Tukar sekolah</a></p>');
         $('#switchSchool', a).onclick = function (e) {
             e.preventDefault();
-            try { localStorage.removeItem('tb-last-school'); } catch (err) { /* ignore */ }
-            goTop(homeLink());
+            switchSchool();
         };
         var sel = $('#userSelect', a), step = $('#loginStep', a);
         try { var last = localStorage.getItem('tb-last-user'); if (last && teachers.some(function (t) { return String(t.id) === last; })) sel.value = last; } catch (e) { /* ignore */ }
@@ -343,6 +357,12 @@ window.App = (function () {
             var t = teachers.filter(function (x) { return String(x.id) === sel.value; })[0];
             $('#loginAlert', a).innerHTML = '';
             if (!t) { step.innerHTML = ''; return; }
+            if (t.pending) {
+                step.innerHTML = '<div class="auth-note mb-3"><i class="bi bi-hourglass-split me-1 text-warning"></i><strong>Menunggu pengesahan.</strong> No. KP anda telah didaftarkan. ' +
+                    'Anda boleh log masuk selepas pentadbir sekolah mengesahkan akaun anda.</div>' +
+                    '<div class="small text-body-secondary">Bukan anda yang mendaftar? Maklumkan kepada pentadbir sekolah segera.</div>';
+                return;
+            }
             if (t.activated) {
                 step.innerHTML = icInput('password', 'No. Kad Pengenalan / kata laluan', true) +
                     '<div class="form-check mb-4"><input class="form-check-input" type="checkbox" id="remember" checked><label class="form-check-label small" for="remember">Ingat saya pada peranti ini</label></div>' +
@@ -353,7 +373,8 @@ window.App = (function () {
                 step.innerHTML = '<div class="auth-note mb-3"><i class="bi bi-stars me-1 text-primary"></i><strong>Log masuk kali pertama.</strong> Daftarkan No. Kad Pengenalan anda (12 digit) — ia akan menjadi kata laluan anda.</div>' +
                     icInput('ic', 'No. Kad Pengenalan', true) + icInput('ic_confirm', 'Sahkan No. Kad Pengenalan') +
                     '<div class="form-check mb-4"><input class="form-check-input" type="checkbox" id="remember" checked><label class="form-check-label small" for="remember">Ingat saya pada peranti ini</label></div>' +
-                    '<button class="btn btn-primary btn-lg w-100 fw-semibold">Daftar &amp; Log Masuk <i class="bi bi-arrow-right ms-1"></i></button>';
+                    '<button class="btn btn-primary btn-lg w-100 fw-semibold">Daftar No. KP <i class="bi bi-arrow-right ms-1"></i></button>' +
+                    '<div class="xsmall text-body-secondary mt-2 text-center">Pentadbir sekolah akan mengesahkan akaun anda sebelum anda boleh log masuk.</div>';
                 $$('[name=ic], [name=ic_confirm]', step).forEach(function (i) { i.type = 'password'; });
             }
             $$('[data-reveal]', step).forEach(function (b) {
@@ -371,7 +392,7 @@ window.App = (function () {
         $('#loginForm', a).onsubmit = function (e) {
             e.preventDefault();
             var t = teachers.filter(function (x) { return String(x.id) === sel.value; })[0];
-            if (!t) return;
+            if (!t || t.pending) return;
             var btn = $('button.btn-primary', step), remember = $('#remember', step).checked;
             var req = t.activated
                 ? api('login', { user_id: t.id, password: $('[name=password]', step).value, remember: remember }, { public: true })
@@ -379,11 +400,19 @@ window.App = (function () {
             busy(btn, true);
             req.then(function (r) {
                 try { localStorage.setItem('tb-last-user', String(t.id)); } catch (err) { /* ignore */ }
+                if (r.status === 'pending') {
+                    t.pending = true;
+                    showMessage('hourglass-split', 'No. KP berjaya didaftarkan', 'Akaun anda kini menunggu pengesahan pentadbir sekolah. Selepas disahkan, log masuk dengan nama dan No. KP anda.',
+                        '<button class="btn btn-primary mt-2" id="backLogin3">Kembali ke log masuk</button>');
+                    $('#backLogin3').onclick = showLogin;
+                    return;
+                }
                 setToken(r.token, remember);
                 startSession();
             }).catch(function (err) {
                 busy(btn, false);
                 if (err.code === 'NOT_ACTIVATED') { t.activated = false; renderStep(); }
+                if (err.code === 'PENDING') { t.pending = true; renderStep(); }
                 $('#loginAlert', a).innerHTML = '<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i>' + esc(err.message) + '</div>';
             });
         };
@@ -437,34 +466,36 @@ window.App = (function () {
             S.teachers = c.teachers;
             S.settings = Object.assign(S.settings, c);
             applySettings();
-            try { localStorage.setItem('tb-last-school', JSON.stringify({ slug: S.school, name: c.school_name })); } catch (e) { /* ignore */ }
+            try { localStorage.setItem(SCHOOL_KEY, JSON.stringify({ code: S.school, name: c.school_name })); } catch (e) { /* ignore */ }
         });
     }
 
     /* ------------------------------------------------------------------
-     * Landing page (no school in the URL): ask for the school code.
-     * The list of schools is never shown.
+     * Landing page: ask for the KPM school code. The list of schools is
+     * never shown; the teacher list only appears after a valid code.
      * ------------------------------------------------------------------ */
     function showLanding(errorMsg) {
-        var last = null;
-        try { last = JSON.parse(localStorage.getItem('tb-last-school') || 'null'); } catch (e) { /* ignore */ }
         S.settings.system_name = S.settings.system_name || CFG.platformName || 'Sistem Tempahan Bilik Khas';
-        var a = showAuth(
-            (last && last.slug && !errorMsg ? '<a href="' + esc(schoolLink(last.slug)) + '" class="continue-school mb-4" id="continueSchool"><span class="small text-body-secondary">Teruskan ke</span><strong>' + esc(last.name || last.slug) +
-                '</strong><i class="bi bi-arrow-right-circle-fill"></i></a><div class="text-center small text-body-secondary mb-3">atau masukkan kod sekolah lain</div>'
-                : '<h2 class="h3 fw-bold mb-1">Selamat datang 👋</h2><p class="text-body-secondary mb-4">Masukkan kod sekolah anda untuk log masuk.</p>') +
-            (errorMsg ? '<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i>' + esc(errorMsg) + '</div>' : '') +
+        var a = showAuth('<h2 class="h3 fw-bold mb-1">Selamat datang 👋</h2><p class="text-body-secondary mb-4">Masukkan kod sekolah anda untuk log masuk.</p>' +
+            '<div id="codeAlert">' + (errorMsg ? '<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i>' + esc(errorMsg) + '</div>' : '') + '</div>' +
             '<form id="codeForm" autocomplete="off"><label class="form-label fw-semibold" for="schoolCode">Kod sekolah</label>' +
-            '<div class="input-icon mb-3"><i class="bi bi-building"></i><input class="form-control form-control-lg text-lowercase" id="schoolCode" required placeholder="cth. smkabc"></div>' +
+            '<div class="input-icon mb-3"><i class="bi bi-building"></i><input class="form-control form-control-lg text-uppercase" id="schoolCode" required placeholder="cth. PEA1234" autocapitalize="characters" spellcheck="false"></div>' +
             '<button class="btn btn-primary btn-lg w-100 fw-semibold">Teruskan <i class="bi bi-arrow-right ms-1"></i></button></form>' +
-            '<p class="text-center xsmall text-body-tertiary mt-4 mb-0">Tidak tahu kod sekolah? Tanya pentadbir sistem di sekolah anda, atau gunakan pautan yang mereka kongsikan.</p>');
-        var cont = $('#continueSchool', a);
-        if (cont) cont.onclick = function (e) { e.preventDefault(); goTop(schoolLink(last.slug)); };
+            '<p class="text-center xsmall text-body-tertiary mt-4 mb-0">Gunakan kod sekolah KPM anda. Sekolah anda akan diingati pada peranti ini.</p>');
         $('#codeForm', a).onsubmit = function (e) {
             e.preventDefault();
-            var code = $('#schoolCode', a).value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-            if (code) goTop(schoolLink(code));
+            var code = normCode($('#schoolCode', a).value);
+            if (!code) return;
+            var btn = $('button', this);
+            busy(btn, true);
+            S.school = code;
+            openSchool().catch(function (err) {
+                busy(btn, false);
+                S.school = '';
+                $('#codeAlert', a).innerHTML = '<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i>' + esc(err.message) + '</div>';
+            });
         };
+        setTimeout(function () { var i = $('#schoolCode', a); if (i) i.focus(); }, 50);
     }
 
     function startSession() {
@@ -665,7 +696,7 @@ window.App = (function () {
     };
 
     function displayUrl() {
-        return IN_GAS ? CFG.gasUrl + '?page=display&s=' + encodeURIComponent(S.school) : '/display.html?s=' + encodeURIComponent(S.school);
+        return IN_GAS ? CFG.gasUrl + '?page=display&s=' + encodeURIComponent(S.school) : '/display.html';
     }
 
     function loadScript(src) {
@@ -709,15 +740,25 @@ window.App = (function () {
             showLanding();
             return;
         }
-        wireGlobal();
-        loadConfig().then(function () {
-            return getToken() ? startSession() : showLogin();
-        }).catch(function (err) {
-            if (err.code === 'SCHOOL_NOT_FOUND') return showLanding('Kod sekolah "' + S.school + '" tidak dijumpai. Sila semak dengan pentadbir sekolah anda.');
+        openSchool().catch(function (err) {
+            if (err.code === 'SCHOOL_NOT_FOUND') {
+                try { localStorage.removeItem(SCHOOL_KEY); } catch (e) { /* ignore */ }
+                S.school = '';
+                return showLanding(err.message);
+            }
             if (err.code === 'SCHOOL_SUSPENDED') {
-                return showMessage('pause-circle', 'Akaun digantung', esc(err.message), '<a href="#" class="btn btn-light mt-2" onclick="event.preventDefault();App.goTop(App.homeLink())">Pilih sekolah lain</a>');
+                return showMessage('pause-circle', 'Akaun digantung', esc(err.message), '<a href="#" class="btn btn-light mt-2" onclick="event.preventDefault();App.switchSchool()">Pilih sekolah lain</a>');
             }
             showMessage('wifi-off', 'Tidak dapat menghubungi pelayan', esc(err.message), '<button class="btn btn-primary mt-2" onclick="location.reload()">Cuba lagi</button>');
+        });
+    }
+
+    /** Load the current school; rejects with SCHOOL_NOT_FOUND / SCHOOL_SUSPENDED. */
+    var wired = false;
+    function openSchool() {
+        return loadConfig().then(function () {
+            if (!wired) { wireGlobal(); wired = true; }
+            return getToken() ? startSession() : showLogin();
         });
     }
 
@@ -729,6 +770,6 @@ window.App = (function () {
         pageTitle: pageTitle, brandLogo: brandLogo, setLogo: setLogo, link: link, go: go, formData: formData, busy: busy, csvDownload: csvDownload, pager: pager,
         toast: toast, confirm: confirmBox, showError: showError, api: api, route: addRoute, reload: route, refreshSession: refreshSession,
         charts: charts, loadScript: loadScript, vendor: VENDOR, displayUrl: displayUrl, start: start,
-        showAuth: showAuth, goTop: goTop, homeLink: homeLink, schoolLink: schoolLink, IN_GAS: IN_GAS, CFG: CFG,
+        showAuth: showAuth, goTop: goTop, homeLink: homeLink, switchSchool: switchSchool, IN_GAS: IN_GAS, CFG: CFG,
     };
 })();

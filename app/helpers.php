@@ -10,11 +10,8 @@ function e(mixed $v): string
 
 function url(string $page, array $params = []): string
 {
-    $base = ['p' => $page];
-    if (($slug = school_slug()) !== '' && !str_starts_with($page, 'platform')) {
-        $base['s'] = $slug;
-    }
-    return 'index.php?' . http_build_query(array_merge($base, $params));
+    // The school is not part of the address: it is remembered in the session and on the device.
+    return 'index.php?' . http_build_query(array_merge(['p' => $page], $params));
 }
 
 function redirect(string $page, array $params = []): never

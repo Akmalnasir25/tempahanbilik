@@ -9,16 +9,18 @@ if (is_post()) {
     foreach ($d as $k => $_) {
         $d[$k] = input($k);
     }
+    // The KPM school code (e.g. PEA1234) identifies the school; stored in lower case.
     $d['slug'] = strtolower($d['slug']);
+    $d['school_code'] = strtoupper($d['slug']);
     $d['adopt_legacy'] = $legacy && !empty($_POST['adopt_legacy']);
     $password = input('admin_password') ?: random_password();
 
-    if (!valid_slug($d['slug'])) $errors[] = 'Kod pautan mestilah 3–30 aksara: huruf kecil, nombor dan sengkang (cth. smkabc), dan bukan perkataan simpanan sistem.';
-    elseif (find_school($d['slug']) || is_file(school_db_path($d['slug']))) $errors[] = 'Kod pautan "' . $d['slug'] . '" sudah digunakan.';
+    if (!valid_slug($d['slug'])) $errors[] = 'Kod sekolah mestilah 3–30 aksara: huruf, nombor dan sengkang sahaja (cth. PEA1234).';
+    elseif (find_school($d['slug']) || is_file(school_db_path($d['slug']))) $errors[] = 'Kod sekolah ' . $d['school_code'] . ' sudah didaftarkan.';
     else {
         $st = platform_db()->prepare('SELECT 1 FROM schools WHERE slug = ?');
         $st->execute([$d['slug']]);
-        if ($st->fetchColumn()) $errors[] = 'Kod pautan "' . $d['slug'] . '" sudah digunakan.';
+        if ($st->fetchColumn()) $errors[] = 'Kod sekolah ' . $d['school_code'] . ' sudah didaftarkan.';
     }
     if (mb_strlen($d['name']) < 3) $errors[] = 'Sila masukkan nama sekolah.';
     if (!$d['adopt_legacy']) {
@@ -53,11 +55,10 @@ platform_header('Tambah Sekolah', 'schools');
             <div class="card-body">
                 <div class="mb-3"><label class="form-label fw-semibold">Nama sekolah <span class="text-danger">*</span></label><input class="form-control" name="name" value="<?= e($d['name']) ?>" required placeholder="cth. SMK Taman Contoh"></div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Kod pautan <span class="text-danger">*</span></label>
-                    <div class="input-group"><span class="input-group-text small"><?= e(preg_replace('#/[^/]*$#', '/', school_url('x'))) ?></span><input class="form-control text-lowercase" name="slug" id="slug" value="<?= e($d['slug']) ?>" required pattern="[a-z0-9][a-z0-9\-]{1,28}[a-z0-9]" placeholder="smkabc"></div>
-                    <div class="form-text">Guru akan buka sistem melalui pautan ini. Guna huruf kecil, nombor dan sengkang sahaja. <strong>Tidak boleh ditukar kemudian.</strong></div>
+                    <label class="form-label fw-semibold">Kod sekolah KPM <span class="text-danger">*</span></label>
+                    <input class="form-control text-uppercase" name="slug" id="slug" value="<?= e(strtoupper($d['slug'])) ?>" required pattern="[A-Za-z0-9][A-Za-z0-9\-]{1,28}[A-Za-z0-9]" placeholder="cth. PEA1234">
+                    <div class="form-text">Guru memasukkan kod ini di <?= e(school_url()) ?> untuk memilih sekolah. <strong>Tidak boleh ditukar kemudian.</strong></div>
                 </div>
-                <div class="mb-3"><label class="form-label fw-semibold">Kod sekolah KPM</label><input class="form-control" name="school_code" value="<?= e($d['school_code']) ?>" placeholder="cth. ABC1234"></div>
                 <div class="row g-3">
                     <div class="col-md-6"><label class="form-label fw-semibold">Pegawai untuk dihubungi</label><input class="form-control" name="contact_name" value="<?= e($d['contact_name']) ?>"></div>
                     <div class="col-md-6"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="contact_phone" value="<?= e($d['contact_phone']) ?>"></div>
@@ -95,7 +96,7 @@ platform_header('Tambah Sekolah', 'schools');
     function sync() { if (adopt) fields.style.display = adopt.checked ? 'none' : ''; }
     if (adopt) { adopt.addEventListener('change', sync); sync(); }
     var slug = document.getElementById('slug');
-    slug.addEventListener('input', function () { slug.value = slug.value.toLowerCase().replace(/[^a-z0-9-]/g, ''); });
+    slug.addEventListener('input', function () { slug.value = slug.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); });
 })();
 </script>
 <?php platform_footer();

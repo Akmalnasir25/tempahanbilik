@@ -44,11 +44,11 @@ Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan d
 
 Satu pemasangan boleh digunakan oleh banyak sekolah. Setiap sekolah mempunyai **fail pangkalan data sendiri** (`data/schools/<kod>.sqlite`), iaitu admin, guru, bilik, tempahan, tetapan dan logo sendiri. Data sekolah lain langsung tidak boleh dicapai.
 
-- **Pautan sekolah:** `https://booking.akmalsys.com/<kod-sekolah>`, contohnya `/smkabc`. Admin sekolah kongsikan pautan ini kepada guru.
-- **Laman utama** meminta kod sekolah (senarai sekolah tidak didedahkan), dan mengingati sekolah terakhir pada peranti.
+- **Satu alamat untuk semua sekolah:** `https://booking.akmalsys.com`. Guru memasukkan **kod sekolah KPM** (contohnya `PEA1234`), kemudian log masuk.
+- Senarai sekolah tidak didedahkan. Sekolah diingati pada peranti, jadi kod hanya perlu ditaip sekali. Pautan lama `/<kod>` masih berfungsi.
 - **Panel Super Admin** (pemilik platform): `index.php?p=platform`
   - Kali pertama dibuka, anda diminta mencipta akaun Super Admin. **Buat ini segera selepas pemasangan.**
-  - Tambah sekolah (nama, kod pautan, admin pertama), gantung atau aktifkan, set semula kata laluan admin sekolah, tambah admin, muat turun sandaran, dan padam sekolah. Data sekolah yang dipadam disimpan dalam `data/deleted/`.
+  - Tambah sekolah (nama, kod sekolah KPM, admin pertama), gantung atau aktifkan, set semula kata laluan admin sekolah, tambah admin, muat turun sandaran, dan padam sekolah. Data sekolah yang dipadam disimpan dalam `data/deleted/`.
   - Jika fail `data/tempahan.sqlite` daripada versi satu-sekolah wujud, ia boleh diimport sebagai sekolah pertama.
 - Log masuk disimpan berasingan bagi setiap sekolah, jadi akaun di satu sekolah tidak sah di sekolah lain.
 
@@ -72,8 +72,8 @@ Buka http://localhost:8000. Pangkalan data (`data/tempahan.sqlite`) dicipta seca
 
 ### Selepas pemasangan
 1. Buka `index.php?p=platform` dan cipta akaun **Super Admin** anda.
-2. Klik **Tambah Sekolah** dan isi nama sekolah, kod pautan serta admin pertama.
-3. Hantar pautan dan kata laluan sementara kepada admin sekolah. Admin akan diminta menukar kata laluan semasa log masuk pertama, kemudian mendaftar guru dan mengemas kini bilik di sekolah mereka.
+2. Klik **Tambah Sekolah** dan isi nama sekolah, kod sekolah KPM serta admin pertama.
+3. Hantar alamat sistem, kod sekolah dan kata laluan sementara kepada admin sekolah. Admin akan diminta menukar kata laluan semasa log masuk pertama, kemudian mendaftar guru dan mengemas kini bilik di sekolah mereka.
 
 ## Sandaran
 Sandarkan keseluruhan folder `data/` secara berkala: `platform.sqlite` ialah senarai sekolah, dan `schools/*.sqlite` ialah data setiap sekolah. Sandaran satu sekolah juga boleh dimuat turun dari panel Super Admin.

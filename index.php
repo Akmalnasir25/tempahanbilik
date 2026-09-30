@@ -40,6 +40,7 @@ if (str_starts_with($page, 'platform')) {
 // "Tukar sekolah": forget the remembered school and go back to the code screen.
 if ($page === 'switch') {
     unset($_SESSION['school']);
+    unset($_COOKIE['tb_school']);
     setcookie('tb_school', '', ['expires' => time() - 3600, 'path' => '/', 'samesite' => 'Lax', 'httponly' => true]);
     header('Location: index.php');
     exit;
@@ -55,9 +56,15 @@ if ($school['status'] !== 'active') {
     require APP_DIR . '/pages/suspended.php';
     exit;
 }
-// Remember this school on the device so the landing page can offer it next time.
+// Remember this school on the device: next time the teacher goes straight to the login page.
 if (($_COOKIE['tb_school'] ?? '') !== $school['slug'] && PHP_SAPI !== 'cli') {
     setcookie('tb_school', $school['slug'], ['expires' => time() + 31536000, 'path' => '/', 'samesite' => 'Lax', 'httponly' => true]);
+}
+// Code typed on the landing page (or an old ?s= link): keep the address clean.
+if (isset($_GET['s']) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $rest = array_diff_key($_GET, ['s' => 1, 'p' => 1]);
+    header('Location: ' . url(isset($routes[$page]) ? $page : 'dashboard', $rest));
+    exit;
 }
 
 if (!isset($routes[$page])) {

@@ -9,8 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE = 'http://127.0.0.1:8090/';
-const SLUG = 'smktc';
-const SB = BASE + SLUG; // booking.akmalsys.com/smktc
+const SLUG = 'pea1234';           // KPM school code (typed as PEA1234)
+const SB = BASE;                   // one address for every school
+const SLUG2 = 'xba1001';
 const SA = { name: 'Akmal Nasir', email: 'akmal@contoh.com', password: 'SuperRahsia2026' };
 const SHOTS = process.argv[2] || path.join(__dirname, 'shots');
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -33,8 +34,13 @@ const CDN_MAP = [
     [/ms\.global\.min\.js$/, 'fullcalendar/locale-ms.global.min.js', 'application/javascript'],
 ];
 
+// opts.school: KPM code already remembered on this device (default SLUG); null = fresh device.
 async function newPage(browser, who, opts) {
-    const ctx = await browser.newContext(Object.assign({ viewport: { width: 1440, height: 900 } }, opts || {}));
+    opts = Object.assign({}, opts);
+    const school = opts.school === undefined ? SLUG : opts.school;
+    delete opts.school;
+    const ctx = await browser.newContext(Object.assign({ viewport: { width: 1440, height: 900 } }, opts));
+    if (school) await ctx.addInitScript((c) => { try { if (!localStorage.getItem('tb-school')) localStorage.setItem('tb-school', JSON.stringify({ code: c })); } catch (e) { /* ignore */ } }, school);
     await ctx.route('**/config.js*', (r) => r.fulfill({ contentType: 'application/javascript', body: CONFIG }));
     await ctx.route('https://cdn.jsdelivr.net/**', (r) => {
         const url = r.request().url();
@@ -64,6 +70,7 @@ async function login(page, name, password, url) {
 }
 function weekday(offset) { const d = new Date(); d.setDate(d.getDate() + offset); while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); }
 const post = (body) => fetch(BASE + 'gas', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.json());
+const names = (page) => page.$eval('#userSelect', (sel) => sel.textContent);
 const gas = (body, school) => post(Object.assign({ school: school || SLUG }, body));
 
 (async () => {
@@ -71,7 +78,7 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     const day = weekday(2);
 
     log('0. Super Admin: persediaan platform & cipta sekolah');
-    const sa = await newPage(browser, 'superadmin');
+    const sa = await newPage(browser, 'superadmin', { school: null });
     await sa.goto(BASE + 'platform');
     await wait(sa, '#pAuth [name=name]');
     assert(await sa.isVisible('text=Persediaan pertama platform'), 'Halaman persediaan Super Admin dipaparkan kali pertama');
@@ -84,19 +91,20 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await sa.goto(BASE + 'platform#/new');
     await wait(sa, '#newSchool');
     await sa.fill('#newSchool [name=name]', 'SMK Taman Cahaya');
-    await sa.fill('#slug', 'Platform');
+    await sa.fill('#slug', 'platform');
     await sa.fill('#newSchool [name=admin_name]', 'Pentadbir Sistem');
     await sa.fill('#newSchool [name=admin_password]', ADMIN_IC);
     await sa.click('#newSchool button.btn-lg');
     await wait(sa, '#pErr .alert');
-    assert(await sa.isVisible('#pErr >> text=simpanan sistem'), 'Kod pautan terpelihara ("platform") ditolak');
-    await sa.fill('#slug', SLUG);
-    await sa.fill('#newSchool [name=school_code]', 'ABC1234');
+    assert(await sa.isVisible('#pErr >> text=Kod sekolah mestilah'), 'Kod terpelihara ("platform") ditolak');
+    await sa.fill('#slug', 'pea1234');
+    assert((await sa.inputValue('#slug')) === 'PEA1234', 'Kod sekolah KPM ditukar ke huruf besar');
     await sa.screenshot({ path: SHOTS + '/00a-platform-new-school.png', fullPage: true });
     await sa.click('#newSchool button.btn-lg');
     await wait(sa, 'text=berjaya dicipta');
     assert(await sa.isVisible('text=Kata laluan sementara: ' + ADMIN_IC), 'Maklumat log masuk admin sekolah dipaparkan sekali');
-    assert(await sa.isVisible('.school-link >> text=/' + SLUG), 'Sekolah baharu tersenarai dengan pautan /' + SLUG);
+    assert(await sa.isVisible('text=Kod sekolah: PEA1234'), 'Kod sekolah dipaparkan untuk dihantar kepada admin');
+    assert(await sa.isVisible('.school-link >> text=PEA1234'), 'Sekolah baharu tersenarai dengan kod PEA1234');
     await sa.screenshot({ path: SHOTS + '/00b-platform-schools.png', fullPage: true });
 
     log('1. Pentadbir log masuk (nama + No. KP)');
@@ -146,8 +154,34 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     assert(await guru.isVisible('text=tidak sepadan'), 'Pengesahan No. KP yang tidak sepadan ditolak');
     await guru.fill('#loginStep [name=ic_confirm]', '900101101234');
     await guru.click('#loginStep button.btn-primary');
+    await wait(guru, 'text=No. KP berjaya didaftarkan');
+    assert(true, 'Selepas daftar No. KP, akaun menunggu pengesahan admin');
+    await guru.screenshot({ path: SHOTS + '/04b-pending.png' });
+    const guruId = (await gas({ action: 'config' })).data.teachers.find((t) => t.name.startsWith('Cikgu Ali')).id;
+    assert((await gas({ action: 'login', data: { user_id: guruId, password: '900101101234' } })).code === 'PENDING', 'Log masuk disekat sehingga admin mengesahkan');
+    await guru.click('#backLogin3');
+    await wait(guru, '#userSelect');
+    assert(await guru.isVisible('text=Menunggu pengesahan'), 'Halaman log masuk menunjukkan status menunggu');
+
+    log('3b. Admin tolak (disyaki dirampas), guru daftar semula, admin sahkan');
+    await admin.goto(SB + '#/admin/users?status=pending');
+    await wait(admin, '[data-reject]');
+    await admin.screenshot({ path: SHOTS + '/04c-admin-pending.png', fullPage: true });
+    await admin.click('[data-reject]');
+    await admin.click('[data-confirm-ok]');
+    await wait(admin, '.tb-toast >> text=ditolak');
+    const again = (await gas({ action: 'config' })).data.teachers.find((t) => t.id === guruId);
+    assert(again && !again.activated && !again.pending, 'Selepas ditolak, akaun kembali belum didaftar (guru sebenar boleh daftar semula)');
+    assert((await gas({ action: 'activate', data: { user_id: guruId, ic: '900101101234', ic_confirm: '900101101234' } })).data.status === 'pending', 'Guru mendaftar semula No. KP');
+    await admin.goto(SB + '#/admin/users');
+    await wait(admin, '#approveAll');
+    await admin.click('#approveAll');
+    await admin.click('[data-confirm-ok]');
+    await wait(admin, '.tb-toast >> text=akaun disahkan');
+    await guru.reload();
+    await login(guru, 'Cikgu Ali', '900101101234');
     await wait(guru, '.hero-card');
-    assert(true, 'Guru masuk selepas mendaftar No. KP');
+    assert(true, 'Guru masuk selepas admin mengesahkan');
 
     log('4. Log keluar & log masuk semula dengan No. KP');
     await guru.click('#userChip');
@@ -160,7 +194,6 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await wait(guru, '.hero-card');
     await idle(guru);
     await guru.screenshot({ path: SHOTS + '/05-guru-dashboard.png', fullPage: true });
-    const guruId = await guru.evaluate(() => App.S.user.id);
     const dash = await gas({ action: 'login', data: { user_id: guruId, password: '900101-10-1234' } });
     assert(dash.ok, 'No. KP dengan sengkang juga diterima');
 
@@ -286,6 +319,9 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await guru.reload();
     await wait(guru, '#userSelect');
     assert(await guru.isVisible('#loginStep [name=ic]'), 'Sesi lama tamat & paparan kali pertama muncul');
+    await gas({ action: 'activate', data: { user_id: guruId, ic: '900101101234', ic_confirm: '900101101234' } });
+    await admin.evaluate((id) => App.api('admin.users.setStatus', { id: id, status: 'active' }), guruId);
+    assert((await gas({ action: 'login', data: { user_id: guruId, password: '900101101234' } })).ok, 'Selepas set semula: daftar No. KP + pengesahan admin, kemudian boleh log masuk');
 
     log('10. Keselamatan');
     await login(guru, 'Cikgu Baru', '880202025555');
@@ -296,6 +332,7 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     assert((await gas({ action: 'dashboard', token: 'palsu' })).code === 'AUTH', 'Token palsu ditolak');
     const sitiId = (await gas({ action: 'config' })).data.teachers.find((t) => t.name.startsWith('Lim')).id;
     await gas({ action: 'activate', data: { user_id: sitiId, ic: '770707077777', ic_confirm: '770707077777' } });
+    await admin.evaluate((id) => App.api('admin.users.setStatus', { id: id, status: 'active' }), sitiId);
     let last;
     for (let i = 0; i < 6; i++) last = await gas({ action: 'login', data: { user_id: sitiId, password: 'salah' + i } });
     assert(last.code === 'LOCKED', 'Akaun dikunci selepas 5 cubaan salah');
@@ -334,7 +371,7 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
 
     log('13. Paparan TV & telefon (mod Firebase)');
     const tv = await newPage(browser, 'tv');
-    await tv.goto(BASE + 'display.html?s=' + SLUG);
+    await tv.goto(BASE + 'display.html');
     await tv.waitForSelector('.db-room');
     await tv.screenshot({ path: SHOTS + '/20-display.png', fullPage: true });
     assert(await tv.isVisible('#logo img'), 'Logo dipaparkan pada paparan TV');
@@ -358,41 +395,47 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
 
     log('15. Banyak sekolah: pengasingan data, halaman utama, gantung, set semula, padam');
     const saTok = await sa.evaluate(() => sessionStorage.getItem('tb-platform-token'));
-    const b = await post({ action: 'platform.school.create', token: saTok, data: { slug: 'skbukit', name: 'SK Bukit Indah', admin_name: 'Cikgu Admin Bukit' } });
+    const b = await post({ action: 'platform.school.create', token: saTok, data: { slug: 'XBA1001', name: 'SK Bukit Indah', admin_name: 'Cikgu Admin Bukit' } });
     assert(b.ok && b.data.admin_password.length >= 8, 'Sekolah kedua dicipta dengan kata laluan sementara dijana');
-    const cfgB = (await gas({ action: 'config' }, 'skbukit')).data;
+    const cfgB = (await gas({ action: 'config' }, SLUG2)).data;
     assert(cfgB.school_name === 'SK Bukit Indah' && cfgB.teachers.length === 1 && cfgB.teachers[0].name === 'Cikgu Admin Bukit', 'Sekolah kedua hanya nampak guru sendiri');
-    const loginA = await gas({ action: 'login', data: { user_id: guruId, password: '880202025555' } }, 'skbukit');
+    const loginA = await gas({ action: 'login', data: { user_id: guruId, password: '880202025555' } }, SLUG2);
     assert(!loginA.ok, 'Kata laluan guru sekolah A tidak berfungsi di sekolah B');
     const tokA = await guru.evaluate((s) => localStorage.getItem('tb-token:' + s) || sessionStorage.getItem('tb-token:' + s), SLUG);
-    assert(tokA && (await gas({ action: 'dashboard', token: tokA }, 'skbukit')).code === 'AUTH', 'Token sesi sekolah A ditolak oleh sekolah B');
-    const bAdmin = await newPage(browser, 'admin-b');
-    await login(bAdmin, 'Cikgu Admin Bukit', b.data.admin_password, BASE + 'skbukit');
+    assert(tokA && (await gas({ action: 'dashboard', token: tokA }, SLUG2)).code === 'AUTH', 'Token sesi sekolah A ditolak oleh sekolah B');
+    const bAdmin = await newPage(browser, 'admin-b', { school: SLUG2 });
+    await login(bAdmin, 'Cikgu Admin Bukit', b.data.admin_password, BASE);
     await wait(bAdmin, '.hero-card');
     await idle(bAdmin);
     assert(await bAdmin.isVisible('.hero-card >> text=SK Bukit Indah'), 'Admin sekolah B masuk ke sekolah sendiri');
     const bRes = await bAdmin.evaluate(() => App.api('admin.bookings', {}).then((r) => JSON.stringify(r)));
     assert(!bRes.includes('PdP Sains Komputer'), 'Tempahan sekolah A tidak kelihatan di sekolah B');
 
-    const land = await newPage(browser, 'landing');
+    const land = await newPage(browser, 'landing', { school: null });
     await land.goto(BASE);
     await wait(land, '#schoolCode');
     assert(!(await land.content()).includes('SK Bukit Indah'), 'Halaman utama tidak menyenaraikan sekolah');
+    assert(!(await land.$('#userSelect')), 'Senarai nama guru tidak dipaparkan sebelum kod sekolah dimasukkan');
     await land.screenshot({ path: SHOTS + '/23-landing.png' });
-    await land.fill('#schoolCode', 'tiadasekolah');
+    await land.fill('#schoolCode', 'tiada999');
     await land.click('#codeForm button');
-    await wait(land, '.alert-danger >> text=tidak dijumpai');
+    await wait(land, '#codeAlert .alert >> text=tidak dijumpai');
     assert(true, 'Kod sekolah salah memaparkan ralat');
-    await land.goto(BASE);
-    await wait(land, '#schoolCode');
-    await land.fill('#schoolCode', ' SKBukit ');
+    await land.fill('#schoolCode', ' xba1001 ');
     await land.click('#codeForm button');
     await wait(land, '#userSelect');
-    assert(land.url().endsWith('/skbukit'), 'Kod sekolah membawa ke /skbukit');
-    await land.goto(BASE);
-    await wait(land, '#continueSchool');
-    assert(await land.isVisible('#continueSchool >> text=SK Bukit Indah'), 'Halaman utama mengingati sekolah terakhir');
-    await land.screenshot({ path: SHOTS + '/24-landing-remember.png' });
+    assert(land.url() === BASE, 'Alamat kekal ' + BASE + ' (tiada kod sekolah dalam URL)');
+    assert((await names(land)).includes('Cikgu Admin Bukit'), 'Selepas kod betul, senarai nama guru sekolah itu dipaparkan');
+    await land.screenshot({ path: SHOTS + '/24-landing-names.png' });
+    await land.reload();
+    await wait(land, '#userSelect');
+    assert(true, 'Sekolah diingati: buka semula terus ke senarai nama');
+    await land.click('#switchSchool');
+    await wait(land, '#schoolCode');
+    assert(true, '"Tukar sekolah" kembali ke kotak kod sekolah');
+    await land.goto(BASE + 'pea1234');
+    await wait(land, '#userSelect');
+    assert(land.url() === BASE && (await names(land)).includes('Cikgu Ali bin Abu'), 'Pautan lama /kod masih berfungsi dan alamat dikemaskan');
 
     await sa.goto(BASE + 'platform#/school?id=' + b.data.id);
     await wait(sa, '#toggleStatus');
@@ -400,7 +443,7 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await sa.click('#toggleStatus');
     await sa.click('[data-confirm-ok]');
     await wait(sa, 'text=Digantung');
-    assert((await gas({ action: 'config' }, 'skbukit')).code === 'SCHOOL_SUSPENDED', 'Sekolah digantung tidak boleh diakses');
+    assert((await gas({ action: 'config' }, SLUG2)).code === 'SCHOOL_SUSPENDED', 'Sekolah digantung tidak boleh diakses');
     await bAdmin.reload();
     await wait(bAdmin, 'text=Akaun digantung');
     assert(true, 'Pengguna sekolah digantung nampak mesej digantung');
@@ -408,18 +451,18 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await post({ action: 'platform.school.setStatus', token: saTok, data: { id: b.data.id, status: 'active' } });
     const bAdminId = cfgB.teachers[0].id;
     const reset = await post({ action: 'platform.school.resetAdmin', token: saTok, data: { id: b.data.id, user_id: bAdminId } });
-    assert(reset.ok && (await gas({ action: 'login', data: { user_id: bAdminId, password: reset.data.password } }, 'skbukit')).ok, 'Super Admin set semula kata laluan admin sekolah');
-    assert(!(await gas({ action: 'login', data: { user_id: bAdminId, password: b.data.admin_password } }, 'skbukit')).ok, 'Kata laluan lama admin tidak lagi sah');
+    assert(reset.ok && (await gas({ action: 'login', data: { user_id: bAdminId, password: reset.data.password } }, SLUG2)).ok, 'Super Admin set semula kata laluan admin sekolah');
+    assert(!(await gas({ action: 'login', data: { user_id: bAdminId, password: b.data.admin_password } }, SLUG2)).ok, 'Kata laluan lama admin tidak lagi sah');
     assert((await post({ action: 'platform.schools', token: 'palsu' })).code === 'AUTH', 'API Super Admin menolak token palsu');
     assert((await post({ action: 'platform.schools', token: tokA })).code === 'AUTH', 'Token guru/admin sekolah tidak boleh guna API Super Admin');
     const bad = await post({ action: 'platform.school.delete', token: saTok, data: { id: b.data.id, confirm_slug: 'salah' } });
     assert(bad.code === 'VALIDATION', 'Padam memerlukan kod pengesahan yang betul');
     await sa.goto(BASE + 'platform#/school?id=' + b.data.id);
     await wait(sa, '#delSchool');
-    await sa.fill('#delSchool [name=confirm_slug]', 'skbukit');
+    await sa.fill('#delSchool [name=confirm_slug]', 'XBA1001');
     await sa.click('#delSchool button');
     await wait(sa, '.tb-toast >> text=dipadam');
-    assert((await gas({ action: 'config' }, 'skbukit')).code === 'SCHOOL_NOT_FOUND', 'Sekolah dipadam tidak boleh diakses lagi');
+    assert((await gas({ action: 'config' }, SLUG2)).code === 'SCHOOL_NOT_FOUND', 'Sekolah dipadam tidak boleh diakses lagi');
     const sheets = await (await fetch(BASE + '__sheets')).json();
     assert(sheets.some((x) => x.name.startsWith('[DIPADAM] SK Bukit Indah')), 'Google Sheet sekolah dipadam disimpan (dinamakan semula) untuk pemulihan');
     await sa.goto(BASE + 'platform#/audit');
@@ -428,13 +471,13 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await sa.screenshot({ path: SHOTS + '/26-platform-audit.png', fullPage: true });
 
     log('16. Mod GAS: halaman utama & panel Super Admin');
-    const gl = await newPage(browser, 'gas-landing');
+    const gl = await newPage(browser, 'gas-landing', { school: null });
     await gl.goto(BASE + 'gas-app');
     await wait(gl, '#schoolCode');
-    await gl.fill('#schoolCode', SLUG);
+    await gl.fill('#schoolCode', 'PEA1234');
     await gl.click('#codeForm button');
     await wait(gl, '#userSelect');
-    assert(gl.url().includes('gas-app?s=' + SLUG), 'Mod GAS: kod sekolah membuka ?s=' + SLUG);
+    assert((await names(gl)).includes('Cikgu Ali bin Abu'), 'Mod GAS: kod sekolah memaparkan senarai nama');
     await gl.goto(BASE + 'gas-app?page=platform');
     await wait(gl, '#pAuth [name=email]');
     await gl.fill('#pAuth [name=email]', SA.email);

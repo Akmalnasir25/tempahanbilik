@@ -38,7 +38,7 @@ if (is_post()) {
                 break;
             }
             $pdo->prepare('UPDATE schools SET name=?, school_code=?, contact_name=?, contact_email=?, contact_phone=?, notes=? WHERE id=?')
-                ->execute([$name, input('school_code') ?: null, input('contact_name') ?: null, input('contact_email') ?: null, input('contact_phone') ?: null, input('notes') ?: null, $school['id']]);
+                ->execute([$name, strtoupper($school['slug']), input('contact_name') ?: null, input('contact_email') ?: null, input('contact_phone') ?: null, input('notes') ?: null, $school['id']]);
             platform_audit('school.update', $school['slug']);
             flash('success', 'Maklumat sekolah dikemas kini.');
             break;
@@ -86,7 +86,7 @@ if (is_post()) {
             break;
 
         case 'delete':
-            if (input('confirm_slug') !== $school['slug']) {
+            if (strtolower(input('confirm_slug')) !== $school['slug']) {
                 flash('danger', 'Kod pengesahan tidak sepadan. Sekolah tidak dipadam.');
                 break;
             }
@@ -120,7 +120,7 @@ platform_header($school['name'], 'schools');
 <div class="page-head mt-1">
     <div>
         <h1 class="page-title"><?= e($school['name']) ?> <?= $school['status'] === 'active' ? '<span class="badge badge-soft-success fs-6 align-middle">Aktif</span>' : '<span class="badge badge-soft-danger fs-6 align-middle">Digantung</span>' ?></h1>
-        <p class="page-subtitle"><a href="<?= e(school_url($school['slug'])) ?>" target="_blank" class="school-link"><?= e(school_url($school['slug'])) ?> <i class="bi bi-box-arrow-up-right"></i></a></p>
+        <p class="page-subtitle">Kod sekolah <span class="school-link fw-semibold"><?= e(strtoupper($school['slug'])) ?></span></p>
     </div>
     <div class="page-actions">
         <a href="<?= e($self) ?>&amp;backup=1" class="btn btn-light"><i class="bi bi-download me-1"></i>Muat turun sandaran</a>
@@ -153,14 +153,13 @@ platform_header($school['name'], 'schools');
                 <form method="post">
                     <?= csrf_field() ?><input type="hidden" name="action" value="save">
                     <div class="row g-3">
-                        <div class="col-md-8"><label class="form-label fw-semibold">Nama sekolah</label><input class="form-control" name="name" value="<?= e($school['name']) ?>" required></div>
-                        <div class="col-md-4"><label class="form-label fw-semibold">Kod sekolah KPM</label><input class="form-control" name="school_code" value="<?= e($school['school_code']) ?>"></div>
+                        <div class="col-12"><label class="form-label fw-semibold">Nama sekolah</label><input class="form-control" name="name" value="<?= e($school['name']) ?>" required></div>
                         <div class="col-md-4"><label class="form-label fw-semibold">Pegawai dihubungi</label><input class="form-control" name="contact_name" value="<?= e($school['contact_name']) ?>"></div>
                         <div class="col-md-4"><label class="form-label fw-semibold">E-mel</label><input type="email" class="form-control" name="contact_email" value="<?= e($school['contact_email']) ?>"></div>
                         <div class="col-md-4"><label class="form-label fw-semibold">Telefon</label><input class="form-control" name="contact_phone" value="<?= e($school['contact_phone']) ?>"></div>
                         <div class="col-12"><label class="form-label fw-semibold">Catatan dalaman</label><textarea class="form-control" name="notes" rows="2"><?= e($school['notes']) ?></textarea></div>
                     </div>
-                    <div class="form-text">Kod pautan <code><?= e($school['slug']) ?></code> tidak boleh ditukar. Nama yang dipaparkan kepada guru ditetapkan oleh admin sekolah di Tetapan Sistem sekolah.</div>
+                    <div class="form-text">Kod sekolah <code><?= e(strtoupper($school['slug'])) ?></code> tidak boleh ditukar. Nama yang dipaparkan kepada guru ditetapkan oleh admin sekolah di Tetapan Sistem sekolah.</div>
                     <button class="btn btn-primary mt-3">Simpan</button>
                 </form>
             </div>
@@ -168,10 +167,10 @@ platform_header($school['name'], 'schools');
         <div class="card border-danger-subtle">
             <div class="card-header"><h2 class="card-title text-danger"><i class="bi bi-trash me-2"></i>Padam Sekolah</h2></div>
             <div class="card-body">
-                <p class="small">Sekolah akan dikeluarkan dari platform dan pautannya berhenti berfungsi. Fail data dipindahkan ke <code>data/deleted/</code> (tidak dimusnahkan) supaya boleh dipulihkan secara manual jika perlu.</p>
+                <p class="small">Sekolah akan dikeluarkan dari platform dan kod sekolahnya berhenti berfungsi. Fail data dipindahkan ke <code>data/deleted/</code> (tidak dimusnahkan) supaya boleh dipulihkan secara manual jika perlu.</p>
                 <form method="post" class="d-flex flex-wrap gap-2">
                     <?= csrf_field() ?><input type="hidden" name="action" value="delete">
-                    <input class="form-control" style="max-width: 260px" name="confirm_slug" placeholder="Taip <?= e($school['slug']) ?> untuk sahkan" autocomplete="off" required>
+                    <input class="form-control" style="max-width: 260px" name="confirm_slug" placeholder="Taip <?= e(strtoupper($school['slug'])) ?> untuk sahkan" autocomplete="off" required>
                     <button class="btn btn-danger">Padam sekolah</button>
                 </form>
             </div>

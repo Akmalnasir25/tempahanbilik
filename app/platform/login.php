@@ -42,7 +42,7 @@ platform_header('Log Masuk');
     <div class="card">
         <div class="card-body p-4">
             <h1 class="h4 fw-bold mb-1">Log masuk Super Admin</h1>
-            <p class="text-body-secondary small">Untuk pemilik platform sahaja. Guru dan admin sekolah log masuk melalui pautan sekolah masing-masing.</p>
+            <p class="text-body-secondary small">Untuk pemilik platform sahaja. Guru dan admin sekolah log masuk di halaman utama menggunakan kod sekolah.</p>
             <?php if ($error): ?><div class="alert alert-danger py-2 small"><?= e($error) ?></div><?php endif; ?>
             <form method="post">
                 <?= csrf_field() ?>

@@ -114,11 +114,11 @@ window.Platform = (function (A) {
                 '<div class="row g-3 mb-4">' + [['Jumlah Sekolah', t.schools, 'building', 'primary'], ['Sekolah Aktif', t.active, 'check-circle', 'success'], ['Pengguna Aktif', t.users, 'people', 'info'], ['Tempahan Bulan Ini', t.month, 'calendar-check', 'warning']].map(function (x) {
                     return '<div class="col-6 col-lg-3"><div class="stat-card"><div class="stat-icon bg-' + x[3] + '-subtle text-' + x[3] + '-emphasis"><i class="bi bi-' + x[2] + '"></i></div><div><div class="stat-value">' + x[1] + '</div><div class="stat-label">' + x[0] + '</div></div></div></div>';
                 }).join('') + '</div>' +
-                '<div class="card">' + (rows.length ? '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Sekolah</th><th>Pautan</th><th class="text-center">Pengguna</th><th class="text-center">Bilik</th><th class="text-center">Tempahan (bulan ini)</th><th>Log masuk terakhir</th><th>Status</th><th></th></tr></thead><tbody>' +
+                '<div class="card">' + (rows.length ? '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Sekolah</th><th>Kod sekolah</th><th class="text-center">Pengguna</th><th class="text-center">Bilik</th><th class="text-center">Tempahan (bulan ini)</th><th>Log masuk terakhir</th><th>Status</th><th></th></tr></thead><tbody>' +
                     rows.map(function (r) {
                         var st = r.stats;
-                        return '<tr><td><strong>' + esc(r.name) + '</strong><div class="xsmall text-body-secondary">' + esc(r.school_code || '-') + (st.error ? ' · <span class="text-danger">' + esc(st.error) + '</span>' : '') + '</div></td>' +
-                            '<td><a href="' + esc(r.url) + '" target="_blank" class="school-link">/' + esc(r.slug) + ' <i class="bi bi-box-arrow-up-right"></i></a></td>' +
+                        return '<tr><td><strong>' + esc(r.name) + '</strong>' + (st.error ? '<div class="xsmall text-danger">' + esc(st.error) + '</div>' : '') + '</td>' +
+                            '<td><span class="school-link fw-semibold">' + esc(String(r.slug).toUpperCase()) + '</span></td>' +
                             '<td class="text-center">' + st.users + (st.pending_users ? ' <span class="badge badge-soft-warning">+' + st.pending_users + '</span>' : '') + '</td><td class="text-center">' + st.rooms + '</td>' +
                             '<td class="text-center">' + st.bookings + ' <span class="text-body-secondary">(' + st.month + ')</span></td>' +
                             '<td class="small">' + (st.last_login ? A.fmtDateTime(st.last_login) : '<span class="text-body-tertiary">Belum ada</span>') + '</td>' +
@@ -131,7 +131,7 @@ window.Platform = (function (A) {
     function credentialsCard(c) {
         return '<div class="card border-success-subtle mb-4"><div class="card-body"><h2 class="h5 fw-bold text-success"><i class="bi bi-check-circle me-1"></i>' + esc(c.name) + ' berjaya dicipta</h2>' +
             '<p class="mb-2">Hantar maklumat ini kepada admin sekolah. Kata laluan tidak akan dipaparkan lagi.</p>' +
-            '<div class="bg-body-tertiary rounded p-3 font-monospace small user-select-all" style="white-space:pre-line">Pautan sistem: ' + esc(c.url) + '\nKod sekolah: ' + esc(c.slug) +
+            '<div class="bg-body-tertiary rounded p-3 font-monospace small user-select-all" style="white-space:pre-line">Pautan sistem: ' + esc(c.url) + '\nKod sekolah: ' + esc(String(c.slug).toUpperCase()) +
             (c.admin_password ? '\nNama admin (pilih di halaman log masuk): ' + esc(c.admin_name) + '\nKata laluan sementara: ' + esc(c.admin_password) : '\nGoogle Sheet sedia ada digunakan (akaun admin sedia ada kekal).') +
             '</div><div class="small text-body-secondary mt-2">Data sekolah: <a href="' + esc(c.sheet_url) + '" target="_blank">Google Sheet sekolah</a> (dalam Google Drive anda).</div></div></div>';
     }
@@ -141,10 +141,9 @@ window.Platform = (function (A) {
         frame('Tambah Sekolah', '', '<a href="#/" class="small"><i class="bi bi-arrow-left me-1"></i>Kembali</a><h1 class="page-title mt-1 mb-4">Tambah Sekolah</h1><div id="pErr"></div>' +
             '<form id="newSchool" class="row g-4" autocomplete="off"><div class="col-lg-6"><div class="card h-100"><div class="card-header"><h2 class="card-title"><i class="bi bi-building me-2"></i>Maklumat Sekolah</h2></div><div class="card-body">' +
             '<div class="mb-3"><label class="form-label fw-semibold">Nama sekolah <span class="text-danger">*</span></label><input class="form-control" name="name" required placeholder="cth. SMK Taman Contoh"></div>' +
-            '<div class="mb-3"><label class="form-label fw-semibold">Kod pautan <span class="text-danger">*</span></label><div class="input-group"><span class="input-group-text small">' + esc(A.schoolLink('').replace(/\/?$/, '/').replace(/\?s=\/$/, '?s=')) + '</span>' +
-            '<input class="form-control text-lowercase" name="slug" id="slug" required pattern="[a-z0-9][a-z0-9\\-]{1,28}[a-z0-9]" placeholder="smkabc"></div>' +
-            '<div class="form-text">Guru akan buka sistem melalui pautan ini. Huruf kecil, nombor dan sengkang sahaja. <strong>Tidak boleh ditukar kemudian.</strong></div></div>' +
-            '<div class="mb-3"><label class="form-label fw-semibold">Kod sekolah KPM</label><input class="form-control" name="school_code" placeholder="cth. ABC1234"></div>' +
+            '<div class="mb-3"><label class="form-label fw-semibold">Kod sekolah KPM <span class="text-danger">*</span></label>' +
+            '<input class="form-control text-uppercase" name="slug" id="slug" required pattern="[A-Za-z0-9][A-Za-z0-9\\-]{1,28}[A-Za-z0-9]" placeholder="cth. PEA1234">' +
+            '<div class="form-text">Guru memasukkan kod ini di halaman utama untuk memilih sekolah. <strong>Tidak boleh ditukar kemudian.</strong></div></div>' +
             '<div class="row g-3"><div class="col-md-6"><label class="form-label fw-semibold">Pegawai dihubungi</label><input class="form-control" name="contact_name"></div>' +
             '<div class="col-md-6"><label class="form-label fw-semibold">No. telefon</label><input class="form-control" name="contact_phone"></div>' +
             '<div class="col-12"><label class="form-label fw-semibold">Catatan dalaman</label><textarea class="form-control" name="notes" rows="2" placeholder="cth. Langganan tamat Disember 2027"></textarea></div></div></div></div></div>' +
@@ -157,7 +156,7 @@ window.Platform = (function (A) {
             '</div></div></div><div class="col-12"><button class="btn btn-primary btn-lg px-5"><i class="bi bi-check2-circle me-1"></i>Cipta Sekolah</button>' +
             '<span class="small text-body-secondary ms-3">Mencipta Google Sheet baharu mengambil masa beberapa saat.</span></div></form>');
         var slug = $('#slug');
-        slug.oninput = function () { slug.value = slug.value.toLowerCase().replace(/[^a-z0-9-]/g, ''); };
+        slug.oninput = function () { slug.value = slug.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); };
         $('#adopt').oninput = function () { $('#adminFields').style.opacity = this.value ? '.4' : '1'; };
         $('#newSchool').onsubmit = function (e) {
             e.preventDefault();
@@ -184,7 +183,7 @@ window.Platform = (function (A) {
             P.creds = null;
             $('#pView').innerHTML = '<a href="#/" class="small"><i class="bi bi-arrow-left me-1"></i>Semua sekolah</a>' +
                 '<div class="page-head mt-1"><div><h1 class="page-title">' + esc(s.name) + ' ' + (active ? '<span class="badge badge-soft-success fs-6 align-middle">Aktif</span>' : '<span class="badge badge-soft-danger fs-6 align-middle">Digantung</span>') + '</h1>' +
-                '<p class="page-subtitle"><a href="' + esc(s.url) + '" target="_blank" class="school-link">' + esc(s.url) + ' <i class="bi bi-box-arrow-up-right"></i></a></p></div>' +
+                '<p class="page-subtitle">Kod sekolah <span class="school-link fw-semibold">' + esc(String(s.slug).toUpperCase()) + '</span></p></div>' +
                 '<div class="page-actions"><a href="' + esc(s.sheet_url) + '" target="_blank" class="btn btn-light"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Buka Google Sheet</a>' +
                 '<button class="btn ' + (active ? 'btn-outline-danger' : 'btn-success') + '" id="toggleStatus"><i class="bi bi-' + (active ? 'pause' : 'play') + '-circle me-1"></i>' + (active ? 'Gantung' : 'Aktifkan') + '</button></div></div>' +
                 (creds ? '<div class="alert alert-info">Kata laluan sementara untuk <strong>' + esc(creds.name) + '</strong>: <code class="fs-6 user-select-all px-2 py-1 bg-body rounded">' + esc(creds.password) + '</code><div class="small mt-1">Hantar kepada admin sekolah. Ia tidak akan dipaparkan lagi.</div></div>' : '') +
@@ -193,15 +192,14 @@ window.Platform = (function (A) {
                     return '<div class="col-6 col-lg-3"><div class="stat-card"><div class="stat-icon bg-' + x[3] + '-subtle text-' + x[3] + '-emphasis"><i class="bi bi-' + x[2] + '"></i></div><div><div class="stat-value">' + x[1] + '</div><div class="stat-label">' + x[0] + '</div></div></div></div>';
                 }).join('') + '</div>' +
                 '<div class="row g-4"><div class="col-lg-7"><div class="card mb-4"><div class="card-header"><h2 class="card-title">Maklumat Sekolah</h2></div><div class="card-body"><form id="editSchool"><div class="row g-3">' +
-                '<div class="col-md-8"><label class="form-label fw-semibold">Nama sekolah</label><input class="form-control" name="name" value="' + esc(s.name) + '" required></div>' +
-                '<div class="col-md-4"><label class="form-label fw-semibold">Kod sekolah KPM</label><input class="form-control" name="school_code" value="' + esc(s.school_code) + '"></div>' +
+                '<div class="col-12"><label class="form-label fw-semibold">Nama sekolah</label><input class="form-control" name="name" value="' + esc(s.name) + '" required></div>' +
                 '<div class="col-md-6"><label class="form-label fw-semibold">Pegawai dihubungi</label><input class="form-control" name="contact_name" value="' + esc(s.contact_name) + '"></div>' +
                 '<div class="col-md-6"><label class="form-label fw-semibold">Telefon</label><input class="form-control" name="contact_phone" value="' + esc(s.contact_phone) + '"></div>' +
                 '<div class="col-12"><label class="form-label fw-semibold">Catatan dalaman</label><textarea class="form-control" name="notes" rows="2">' + esc(s.notes) + '</textarea></div></div>' +
-                '<div class="form-text">Kod pautan <code>' + esc(s.slug) + '</code> tidak boleh ditukar.</div><button class="btn btn-primary mt-3">Simpan</button></form></div></div>' +
+                '<div class="form-text">Kod sekolah <code>' + esc(String(s.slug).toUpperCase()) + '</code> tidak boleh ditukar.</div><button class="btn btn-primary mt-3">Simpan</button></form></div></div>' +
                 '<div class="card border-danger-subtle"><div class="card-header"><h2 class="card-title text-danger"><i class="bi bi-trash me-2"></i>Padam Sekolah</h2></div><div class="card-body">' +
-                '<p class="small">Sekolah dikeluarkan dari platform dan pautannya berhenti berfungsi. Google Sheet-nya <strong>tidak dipadam</strong>; ia dinamakan semula "[DIPADAM] …" dalam Drive anda supaya boleh dipulihkan.</p>' +
-                '<form id="delSchool" class="d-flex flex-wrap gap-2"><input class="form-control" style="max-width:260px" name="confirm_slug" placeholder="Taip ' + esc(s.slug) + ' untuk sahkan" required autocomplete="off"><button class="btn btn-danger">Padam sekolah</button></form></div></div></div>' +
+                '<p class="small">Sekolah dikeluarkan dari platform dan kod sekolahnya berhenti berfungsi. Google Sheet-nya <strong>tidak dipadam</strong>; ia dinamakan semula "[DIPADAM] …" dalam Drive anda supaya boleh dipulihkan.</p>' +
+                '<form id="delSchool" class="d-flex flex-wrap gap-2"><input class="form-control" style="max-width:260px" name="confirm_slug" placeholder="Taip ' + esc(String(s.slug).toUpperCase()) + ' untuk sahkan" required autocomplete="off"><button class="btn btn-danger">Padam sekolah</button></form></div></div></div>' +
                 '<div class="col-lg-5"><div class="card"><div class="card-header"><h2 class="card-title"><i class="bi bi-person-badge me-2"></i>Admin Sekolah</h2></div><ul class="list-group list-group-flush">' +
                 (st.admins.length ? st.admins.map(function (a) {
                     return '<li class="list-group-item d-flex align-items-center gap-2"><span class="avatar avatar-sm">' + esc(A.initials(a.name)) + '</span><div class="flex-grow-1 min-w-0"><div class="fw-semibold small text-truncate">' + esc(a.name) + '</div>' +

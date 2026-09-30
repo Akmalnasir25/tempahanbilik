@@ -498,7 +498,11 @@ th.is-break { color: var(--tb-muted); }
         return fetch(APP_CONFIG.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(function (r) { return r.json(); });
     }
     var cfg = window.APP_CONFIG || {};
-    var school = String(cfg.school || new URLSearchParams(location.search).get('s') || '').toLowerCase();
+    var norm = function (v) { return String(v || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, ''); };
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem('tb-school') || 'null'); } catch (e) { /* ignore */ }
+    // Same school as the main app on this device, or ask for the KPM code once.
+    var school = norm(cfg.school || new URLSearchParams(location.search).get('s') || (saved && saved.code));
     function tick() { var d = new Date(); document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
     function load() {
         call({ action: 'display', school: school })
@@ -527,9 +531,21 @@ th.is-break { color: var(--tb-muted); }
             .catch(function (e) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">' + esc(e.message) + '</div>'; });
     }
     tick();
-    if (!school) { document.getElementById('grid').innerHTML = '<div class="p-4 opacity-75">Kod sekolah tidak dinyatakan dalam pautan.</div>'; return; }
-    load();
     setInterval(tick, 10000);
+    if (!school) {
+        document.getElementById('grid').innerHTML = '<form id="codeForm" class="p-4" style="max-width:420px"><label class="form-label fw-semibold" for="code">Masukkan kod sekolah</label>' +
+            '<div class="d-flex gap-2"><input id="code" class="form-control form-control-lg text-uppercase" placeholder="cth. PEA1234" required><button class="btn btn-primary btn-lg">Papar</button></div></form>';
+        document.getElementById('codeForm').onsubmit = function (e) {
+            e.preventDefault();
+            school = norm(document.getElementById('code').value);
+            if (!school) return;
+            try { localStorage.setItem('tb-school', JSON.stringify({ code: school })); } catch (err) { /* ignore */ }
+            load();
+            setInterval(load, 120000);
+        };
+        return;
+    }
+    load();
     setInterval(load, 120000);
 })();
 </script>
