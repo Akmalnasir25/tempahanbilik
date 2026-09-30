@@ -43,6 +43,8 @@ Keselamatan:
 
 ## Cara paling mudah — `deploy.bat` (Windows)
 
+> 📄 Panduan lengkap langkah demi langkah (termasuk arahan CLI manual dan domain): [`deploy/LANGKAH-DEPLOY.md`](deploy/LANGKAH-DEPLOY.md)
+
 Skrip ini melakukan Langkah 1 dan 2 di bawah secara automatik.
 1. Muat turun repo ini (**Code → Download ZIP**) dan extract.
 2. Klik dua kali **`firebase-gas\deploy\deploy.bat`**.
