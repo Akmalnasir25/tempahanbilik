@@ -30,7 +30,7 @@ Dibina dengan **PHP 8 + SQLite**, jadi tiada pelayan pangkalan data berasingan d
 - **Penutupan & cuti**: tutup satu bilik atau semua bilik untuk tempoh tertentu. Ada pilihan untuk membatalkan tempahan terjejas dan memaklumkan guru.
 - **Waktu persekolahan**: ubah suai senarai waktu (Waktu 1, Rehat, dan seterusnya).
 - **Laporan & analitik**: kadar penggunaan setiap bilik, jumlah jam, hari dan waktu paling popular, dan pengguna paling aktif.
-- **Logo sekolah**: muat naik di Tetapan Sistem. Logo dikecilkan secara automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan, paparan TV dan favicon.
+- **Logo**: sistem sudah disertakan dengan logo lalai (`assets/img/`). Sekolah boleh muat naik logo sendiri di Tetapan Sistem untuk menggantikannya, dan menekan **Buang** untuk kembali ke logo lalai. Logo dikecilkan secara automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan, paparan TV dan favicon.
 - **Tetapan**: nama sekolah, waktu operasi, had tempah awal, tempoh maksimum, hujung minggu, pendaftaran sendiri (dengan had domain e-mel) dan had masa pembatalan.
 - **Log audit** untuk semua aktiviti penting.
 - **Paparan skrin TV** (`index.php?p=display`): jadual hari ini untuk bilik guru atau lobi, dengan kemas kini automatik.
@@ -82,5 +82,7 @@ app/
   views/layout.php Susun atur (sidebar, topbar)
   pages/           Halaman guru & pentadbir
 assets/            CSS, JS & pustaka vendor
+  img/             Logo lalai sistem & ikon tab
 data/              Pangkalan data SQLite (tidak dimasukkan ke git)
+design/            Karya asal logo (tidak dihidangkan oleh pelayan web)
 ```

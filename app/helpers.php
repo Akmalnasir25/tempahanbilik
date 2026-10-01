@@ -399,25 +399,42 @@ function js(mixed $v): string
     return (string) json_encode($v, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
 }
 
-/* ---------- School logo ----------
- * Stored in the settings table (base64) and served by index.php?p=logo, so no
- * uploaded file ever lands in a web-accessible folder. */
+/* ---------- System & school logo ----------
+ * The bundled system logo in assets/img ships with the application and is used
+ * until an admin uploads the school's own. An uploaded logo is stored in the
+ * settings table (base64) and served by index.php?p=logo, so it never lands in
+ * a web-accessible folder. */
 
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 const LOGO_MAX_SIDE = 256;
+const DEFAULT_LOGO = 'assets/img/logo.png';
+const DEFAULT_LOGO_ICON = 'assets/img/logo-icon.png';
 
+/** URL of the logo uploaded by an admin, or null when the school has not set one. */
 function logo_url(): ?string
 {
     $v = setting('logo_version');
     return $v && setting('logo_data') ? url('logo', ['v' => $v]) : null;
 }
 
+/** The logo actually shown in the interface: the school's own, else the bundled one. */
+function brand_logo_src(): string
+{
+    return logo_url() ?? DEFAULT_LOGO . '?v=' . APP_VERSION;
+}
+
+/** Square icon for the browser tab: the school's own logo, else the bundled tile. */
+function brand_icon_src(): string
+{
+    return logo_url() ?? DEFAULT_LOGO_ICON . '?v=' . APP_VERSION;
+}
+
 function brand_logo(string $class = ''): string
 {
-    $u = logo_url();
-    return $u
-        ? '<span class="brand-logo has-img ' . e($class) . '"><img src="' . e($u) . '" alt="Logo sekolah"></span>'
-        : '<span class="brand-logo ' . e($class) . '"><i class="bi bi-buildings"></i></span>';
+    $custom = logo_url();
+    $alt = $custom ? 'Logo sekolah' : 'Logo ' . setting('system_name', 'sistem');
+    $cls = 'brand-logo has-img ' . ($custom ? '' : 'is-default ') . $class;
+    return '<span class="' . e(rtrim($cls)) . '"><img src="' . e(brand_logo_src()) . '" alt="' . e($alt) . '"></span>';
 }
 
 /**

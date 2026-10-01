@@ -4,7 +4,7 @@ DirectoryIndex index.php
 <IfModule mod_rewrite.c>
     RewriteEngine On
     # Never serve application code, the database, or dotfiles directly
-    RewriteRule ^(app|data|firebase-gas)(/|$) - [F,L]
+    RewriteRule ^(app|data|design|firebase-gas)(/|$) - [F,L]
     RewriteRule (^|/)\. - [F,L]
     RewriteRule ^(config\.php|router\.php|README\.md)$ - [F,L]
 </IfModule>

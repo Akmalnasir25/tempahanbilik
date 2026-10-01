@@ -19,28 +19,31 @@ Keselamatan: No. KP / kata laluan **tidak disimpan sebagai teks biasa**. Ia disi
 
 ## Pilihan A (paling mudah) — Deploy terus dalam Google Apps Script
 
-Hanya 3 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komputer.
+Hanya 4 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komputer.
 
 1. Log masuk ke Google dan cipta **Google Sheet baharu**, contohnya "Data Tempahan Bilik Khas".
 2. Klik **Extensions → Apps Script**.
 3. **`Code.gs`**: padam kandungan asal, kemudian tampal seluruh kandungan [`gas/Code.gs`](gas/Code.gs).
 4. **`Index.html`**: klik **＋ → HTML**, namakan fail **`Index`**, kemudian tampal kandungan [`gas/Index.html`](gas/Index.html).
 5. **`Display.html`**: ulang langkah yang sama dengan nama **`Display`** dan kandungan [`gas/Display.html`](gas/Display.html). Fail ini untuk paparan TV.
-6. (Disyorkan) Klik ⚙️ **Project Settings**, tandakan **"Show appsscript.json"**, kemudian tampal kandungan [`gas/appsscript.json`](gas/appsscript.json). Ini menetapkan zon waktu Malaysia.
-7. Di bahagian atas `Code.gs`, tukar **`ADMIN_IC`** kepada No. KP pentadbir:
+6. **`Logo.html`**: ulang sekali lagi dengan nama **`Logo`** dan kandungan [`gas/Logo.html`](gas/Logo.html). Fail ini ialah logo lalai sistem. Jika dilangkau, sistem masih berfungsi tetapi memaparkan ikon bangunan sehingga logo sekolah dimuat naik.
+7. (Disyorkan) Klik ⚙️ **Project Settings**, tandakan **"Show appsscript.json"**, kemudian tampal kandungan [`gas/appsscript.json`](gas/appsscript.json). Ini menetapkan zon waktu Malaysia.
+8. Di bahagian atas `Code.gs`, tukar **`ADMIN_IC`** kepada No. KP pentadbir:
    ```js
    var CONFIG = {
      ADMIN_IC: '800101015555',      // No. KP pentadbir = kata laluan pentadbir
      ADMIN_NAME: 'Pentadbir Sistem',
    };
    ```
-8. Pilih fungsi **`setup`** dalam menu atas dan klik **▶ Run**. Benarkan akses apabila diminta.
-9. Klik **Deploy → New deployment → ⚙️ Web app**:
+9. Pilih fungsi **`setup`** dalam menu atas dan klik **▶ Run**. Benarkan akses apabila diminta.
+10. Klik **Deploy → New deployment → ⚙️ Web app**:
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
-10. Klik **Deploy** dan salin **URL Web App** (berakhir dengan `/exec`). **Inilah alamat sistem anda**; kongsikan kepada guru.
-11. Buka URL tersebut, pilih **Pentadbir Sistem**, dan masukkan `ADMIN_IC`. Kemudian:
-    - **Tetapan Sistem:** tukar nama sekolah dan **muat naik logo sekolah**. Logo dikecilkan secara automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV.
+11. Klik **Deploy** dan salin **URL Web App** (berakhir dengan `/exec`). **Inilah alamat sistem anda**; kongsikan kepada guru.
+12. Buka URL tersebut, pilih **Pentadbir Sistem**, dan masukkan `ADMIN_IC`. Kemudian:
+    - **Tetapan Sistem:** tukar nama sekolah dan **muat naik logo sekolah**. Sistem sudah disertakan dengan logo
+      lalai, jadi langkah ini pilihan sahaja; tekan **Buang** untuk kembali ke logo lalai. Logo dikecilkan secara
+      automatik, dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV.
     - **Daftar & Urus Guru:** masukkan nama guru.
     - **Urus Bilik Khas:** kemas kini senarai bilik.
 
@@ -52,7 +55,7 @@ Hanya 3 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komp
 
 Frontend yang sama di-hos di Firebase, dan ia memanggil URL Web App GAS dari Pilihan A.
 
-1. Lengkapkan **Pilihan A langkah 1–10** dahulu. Fail `Index.html` dan `Display.html` tetap diperlukan untuk paparan TV, tetapi boleh ditinggalkan jika tidak mahu.
+1. Lengkapkan **Pilihan A langkah 1–11** dahulu. Fail `Index.html`, `Display.html` dan `Logo.html` tetap diperlukan untuk paparan TV, tetapi boleh ditinggalkan jika tidak mahu.
 2. Isi [`public/config.js`](public/config.js):
    ```js
    window.APP_CONFIG = { gasUrl: 'https://script.google.com/macros/s/…/exec' };
@@ -108,6 +111,7 @@ firebase-gas/
   gas/Code.gs            Backend: API, log masuk, logik tempahan
   gas/Index.html         Aplikasi untuk Apps Script (dijana oleh tools/build-gas.js)
   gas/Display.html       Paparan TV untuk Apps Script (dijana)
+  gas/Logo.html          Logo lalai sistem sebagai data URL (ditampal ke Apps Script)
   gas/appsscript.json    Manifest Apps Script
   public/                Sumber frontend + laman untuk Firebase Hosting
   tools/build-gas.js     Jana gas/*.html daripada public/

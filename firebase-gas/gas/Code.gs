@@ -123,6 +123,7 @@ function doGet(e) {
     return json_({ ok: true, data: { service: 'tempahan-bilik', note: 'Fail ' + file + '.html tiada; hanya API tersedia.' } });
   }
   t.scriptUrl = ScriptApp.getService().getUrl();
+  t.defaultLogo = defaultLogo_();
   var name = '';
   try { name = setting_('system_name'); } catch (err2) { name = DEFAULT_SETTINGS.system_name; }
   return t.evaluate()
@@ -421,6 +422,20 @@ function setSetting_(key, value) {
  * because a single Sheets cell holds at most 50,000 characters. */
 var LOGO_CHUNK = 40000;
 var LOGO_MAX = 200000;
+
+/**
+ * The logo bundled with the system, as a data URL. Apps Script serves no static
+ * files, so the image lives in Logo.html and is injected into the pages. Used
+ * until an admin uploads the school's own logo.
+ */
+function defaultLogo_() {
+  try {
+    return HtmlService.createHtmlOutputFromFile('Logo').getContent()
+      .replace(/<!--[\s\S]*?-->/g, '').trim();
+  } catch (err) {
+    return '';
+  }
+}
 
 function logo_() {
   return T('Settings').rows().filter(function (r) { return /^logo:\d+$/.test(r.key); })

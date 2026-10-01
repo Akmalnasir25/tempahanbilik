@@ -17,7 +17,20 @@ const CDN = {
 };
 const FONT = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">';
-const CONFIG = '<script>window.APP_CONFIG = { gasUrl: <?!= JSON.stringify(scriptUrl) ?>, cdn: true };</script>';
+const CONFIG = '<script>window.APP_CONFIG = { gasUrl: <?!= JSON.stringify(scriptUrl) ?>, cdn: true, ' +
+    'defaultLogo: <?!= JSON.stringify(defaultLogo) ?> };</script>';
+/* Apps Script serves no static files, so the bundled logo travels as a data URL in
+ * APP_CONFIG (from gas/Logo.html, via defaultLogo_() in Code.gs). Inlining it once
+ * and filling the <img> tags from script keeps the page from carrying copies of it. */
+const LOGO_FILL = [
+    '<script>',
+    '(function () {',
+    '    var logo = window.APP_CONFIG.defaultLogo;',
+    '    if (!logo) return;',
+    "    Array.prototype.forEach.call(document.querySelectorAll('img[data-default-logo]'), function (img) { img.src = logo; });",
+    '})();',
+    '</script>',
+].join('\n');
 
 function css() {
     // Fonts come from Google Fonts in the GAS build.
@@ -35,13 +48,18 @@ function build(src) {
         if (!CDN[p]) throw new Error('No CDN mapping for ' + p);
         return '<script src="' + CDN[p] + '"></script>';
     });
-    html = html.replace(/<script src="config\.js[^"]*"><\/script>/, () => CONFIG);
+    html = html.replace(/<script src="config\.js[^"]*"><\/script>/, () => CONFIG + '\n' + LOGO_FILL);
     html = html.replace(/<script src="(assets\/js\/[^"?]+)[^"]*"><\/script>/g, (m, p) => {
-        const js = read('public/' + p);
+        let js = read('public/' + p);
         if (js.indexOf('<?') !== -1 || /<\/script/i.test(js)) throw new Error(p + ' contains a sequence that breaks Apps Script templates');
+        // Here the bundled logo is a data URL in APP_CONFIG, not a file beside the page.
+        js = js.replace(/'assets\/img\/logo\.png'/g, "((window.APP_CONFIG || {}).defaultLogo || '')")
+            .replace(/'assets\/img\/logo-icon\.png'/g, "''");
         return '<script>\n' + js + '\n</script>';
     });
-    html = html.replace(/<link rel="icon"[^>]*>\n?/, '');
+    // Apps Script cannot serve a favicon file, and LOGO_FILL fills the <img> tags.
+    html = html.replace(/<link rel="(icon|apple-touch-icon)"[^>]*>\n?/g, '');
+    html = html.replace(/ src="assets\/img\/logo\.png"(?=[^>]*\sdata-default-logo)/g, '');
     if (/(src|href)="assets\//.test(html)) throw new Error(src + ': unresolved local asset reference');
     return html;
 }

@@ -379,7 +379,8 @@
                 '<input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden>' +
                 '<div class="d-flex flex-wrap gap-2 mb-2"><button type="button" class="btn btn-sm btn-primary" id="logoPick"><i class="bi bi-upload me-1"></i>' + (s.logo ? 'Tukar logo' : 'Muat naik logo') + '</button>' +
                 (s.logo ? '<button type="button" class="btn btn-sm btn-light text-danger" id="logoRemove"><i class="bi bi-trash me-1"></i>Buang</button>' : '') + '</div>' +
-                '<div class="form-text mt-0">PNG, JPG, WebP atau SVG. Logo akan dikecilkan secara automatik dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV. Latar lutsinar (PNG) paling cantik.</div></div></div>' +
+                '<div class="form-text mt-0">' + (s.logo ? 'Logo sekolah anda sedang digunakan.' : 'Logo lalai sistem sedang digunakan. Muat naik logo sekolah untuk menggantikannya.') +
+                ' PNG, JPG, WebP atau SVG. Logo akan dikecilkan secara automatik dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV. Latar lutsinar (PNG) paling cantik.</div></div></div>' +
                 input('system_name', 'Nama sistem') + input('school_name', 'Nama sekolah') + input('school_code', 'Kod sekolah') + input('school_address', 'Alamat') +
                 '</div></div></div><div class="col-lg-6"><div class="card h-100"><div class="card-header"><h2 class="card-title"><i class="bi bi-sliders me-2"></i>Peraturan Tempahan</h2></div><div class="card-body"><div class="row g-3">' +
                 '<div class="col-6"><label class="form-label fw-semibold">Waktu buka</label><input type="time" class="form-control" name="open_time" value="' + esc(s.open_time) + '"></div>' +
@@ -416,7 +417,7 @@
             };
             if ($('#logoRemove')) $('#logoRemove').onclick = function () {
                 var btn = this;
-                A.confirm('Buang logo sekolah? Ikon lalai akan dipaparkan semula.').then(function (ok) { if (ok) saveLogo('', btn); });
+                A.confirm('Buang logo sekolah? Logo lalai sistem akan dipaparkan semula.').then(function (ok) { if (ok) saveLogo('', btn); });
             };
             $('#settingsForm').onsubmit = function (e) {
                 e.preventDefault();
