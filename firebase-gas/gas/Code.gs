@@ -148,6 +148,7 @@ function doGet(e) {
   t.scriptUrl = ScriptApp.getService().getUrl();
   t.school = /^[a-z0-9-]{3,30}$/.test(String(p.s || '').toLowerCase()) ? String(p.s).toLowerCase() : '';
   t.platform = p.page === 'platform';
+  t.defaultLogo = defaultLogo_();
   return t.evaluate()
     .setTitle(p.page === 'display' ? 'Jadual Bilik Khas Hari Ini' : CONFIG.PLATFORM_NAME)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -502,6 +503,20 @@ function setSetting_(key, value) {
  * because a single Sheets cell holds at most 50,000 characters. */
 var LOGO_CHUNK = 40000;
 var LOGO_MAX = 200000;
+
+/**
+ * The logo bundled with the system, as a data URL. Apps Script serves no static
+ * files, so the image lives in Logo.html and is injected into the pages. Used
+ * until an admin uploads the school's own logo.
+ */
+function defaultLogo_() {
+  try {
+    return HtmlService.createHtmlOutputFromFile('Logo').getContent()
+      .replace(/<!--[\s\S]*?-->/g, '').trim();
+  } catch (err) {
+    return '';
+  }
+}
 
 function logo_() {
   return T('Settings').rows().filter(function (r) { return /^logo:\d+$/.test(r.key); })

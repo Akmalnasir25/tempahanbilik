@@ -391,7 +391,7 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await admin.click('[data-confirm-ok]');
     await wait(admin, '.tb-toast >> text=Logo sekolah dibuang');
     assert((await gas({ action: 'config' })).data.logo === '', 'Logo dibuang dan ikon lalai kembali');
-    assert(await admin.isVisible('#sidebarLogo .bi-buildings'), 'Sidebar kembali ke ikon lalai');
+    assert(await admin.isVisible('#sidebarLogo.is-default img'), 'Sidebar kembali ke logo lalai sistem');
 
     log('15. Banyak sekolah: pengasingan data, halaman utama, gantung, set semula, padam');
     const saTok = await sa.evaluate(() => sessionStorage.getItem('tb-platform-token'));

@@ -81,11 +81,14 @@ window.App = (function () {
     var empty = function (icon, text, extra) {
         return '<div class="empty-state py-5"><i class="bi bi-' + icon + '"></i><p>' + esc(text) + '</p>' + (extra || '') + '</div>';
     };
-    /** School logo (uploaded by admin) or the default building icon. */
+    /** The school logo uploaded by an admin, or the logo bundled with the system. */
+    var DEFAULT_LOGO = '/assets/img/logo.png';
+    var DEFAULT_LOGO_ICON = '/assets/img/logo-icon.png';
     var brandLogo = function (cls) {
         var logo = S.settings.logo;
-        return logo ? '<span class="brand-logo has-img ' + (cls || '') + '"><img src="' + esc(logo) + '" alt="Logo sekolah"></span>'
-            : '<span class="brand-logo ' + (cls || '') + '"><i class="bi bi-buildings"></i></span>';
+        if (!logo && !DEFAULT_LOGO) return '<span class="brand-logo ' + (cls || '') + '"><i class="bi bi-buildings"></i></span>';
+        return '<span class="brand-logo has-img ' + (logo ? '' : 'is-default ') + (cls || '') + '">' +
+            '<img src="' + esc(logo || DEFAULT_LOGO) + '" alt="Logo ' + esc(logo ? 'sekolah' : (S.settings.system_name || 'sistem')) + '"></span>';
     };
     var pageTitle = function (title, subtitle, actions) {
         return '<div class="page-head"><div><h1 class="page-title">' + esc(title) + '</h1>' + (subtitle ? '<p class="page-subtitle">' + subtitle + '</p>' : '') +
@@ -518,8 +521,9 @@ window.App = (function () {
         document.title = S.settings.system_name || 'Tempahan Bilik Khas';
         var side = $('#sidebarLogo');
         if (side) side.outerHTML = brandLogo().replace('<span class="brand-logo', '<span id="sidebarLogo" class="brand-logo');
-        var icon = document.querySelector('link[rel="icon"]');
-        if (icon && S.settings.logo) icon.href = S.settings.logo;
+        $$('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(function (el) {
+            el.href = S.settings.logo || DEFAULT_LOGO_ICON;
+        });
     }
 
     function setLogo(logo) {

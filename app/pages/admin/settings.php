@@ -95,12 +95,15 @@ page_title('Tetapan Sistem', 'Konfigurasi maklumat sekolah dan peraturan tempaha
                     <button type="button" class="btn btn-sm btn-primary" id="logoPick"><i class="bi bi-upload me-1"></i><?= logo_url() ? 'Tukar logo' : 'Muat naik logo' ?></button>
                 </form>
                 <?php if (logo_url()): ?>
-                    <form method="post" class="d-inline" data-confirm="Buang logo sekolah? Ikon lalai akan dipaparkan semula.">
+                    <form method="post" class="d-inline" data-confirm="Buang logo sekolah? Logo lalai sistem akan dipaparkan semula.">
                         <?= csrf_field() ?><input type="hidden" name="action" value="logo_remove">
                         <button class="btn btn-sm btn-light text-danger"><i class="bi bi-trash me-1"></i>Buang</button>
                     </form>
                 <?php endif; ?>
-                <div class="form-text">PNG, JPG, WebP atau SVG. Logo dikecilkan secara automatik dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV. Latar lutsinar (PNG) paling cantik.</div>
+                <div class="form-text">
+                    <?= logo_url() ? 'Logo sekolah anda sedang digunakan.' : 'Logo lalai sistem sedang digunakan. Muat naik logo sekolah untuk menggantikannya.' ?>
+                    PNG, JPG, WebP atau SVG. Logo dikecilkan secara automatik dan dipaparkan di sidebar, halaman log masuk, slip tempahan dan paparan TV. Latar lutsinar (PNG) paling cantik.
+                </div>
             </div>
         </div>
     </div>

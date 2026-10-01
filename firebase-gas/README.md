@@ -45,6 +45,8 @@ Keselamatan:
 
 > 📄 Panduan lengkap langkah demi langkah (termasuk arahan CLI manual dan domain): [`deploy/LANGKAH-DEPLOY.md`](deploy/LANGKAH-DEPLOY.md)
 
+Hanya 4 fail perlu ditampal. Tiada Firebase dan tiada pemasangan apa-apa di komputer.
+
 Skrip ini melakukan Langkah 1 dan 2 di bawah secara automatik.
 1. Muat turun repo ini (**Code → Download ZIP**) dan extract.
 2. Klik dua kali **`firebase-gas\deploy\deploy.bat`**.
@@ -68,11 +70,12 @@ Cara manual di bawah hanya diperlukan jika anda tidak menggunakan Windows atau m
 3. **`Code.gs`**: padam kandungan asal, kemudian tampal seluruh kandungan [`gas/Code.gs`](gas/Code.gs).
 4. **`Index.html`**: klik **＋ → HTML**, namakan **`Index`**, kemudian tampal kandungan [`gas/Index.html`](gas/Index.html).
 5. **`Display.html`**: ulang langkah 4 dengan nama **`Display`** dan kandungan [`gas/Display.html`](gas/Display.html).
-6. (Disyorkan) Tetapkan zon waktu Malaysia:
+6. **`Logo.html`**: ulang sekali lagi dengan nama **`Logo`** dan kandungan [`gas/Logo.html`](gas/Logo.html). Fail ini ialah logo lalai sistem. Jika dilangkau, sistem masih berfungsi tetapi memaparkan ikon bangunan sehingga logo sekolah dimuat naik.
+7. (Disyorkan) Tetapkan zon waktu Malaysia:
    - Buka ⚙️ **Project Settings**.
    - Tandakan **"Show appsscript.json"**.
    - Tampal kandungan [`gas/appsscript.json`](gas/appsscript.json).
-7. Semak bahagian atas `Code.gs`:
+8. Semak bahagian atas `Code.gs`:
    ```js
    var CONFIG = {
      PLATFORM_NAME: 'Sistem Tempahan Bilik Khas',
@@ -80,11 +83,11 @@ Cara manual di bawah hanya diperlukan jika anda tidak menggunakan Windows atau m
    };
    ```
    Jika tidak menggunakan domain sendiri, tetapkan `WEB_URL: ''`. URL Web App akan digunakan sebagai alamat sistem.
-8. (Pilihan) Pilih fungsi **`setup`** dan klik **▶ Run**, kemudian benarkan akses apabila diminta. Helaian platform juga disediakan secara automatik pada permintaan pertama.
-9. Buka **Deploy → New deployment → ⚙️ Web app**, kemudian tetapkan:
+9. (Pilihan) Pilih fungsi **`setup`** dan klik **▶ Run**, kemudian benarkan akses apabila diminta. Helaian platform juga disediakan secara automatik pada permintaan pertama.
+10. Buka **Deploy → New deployment → ⚙️ Web app**, kemudian tetapkan:
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
-10. Salin **URL Web App**. URL ini berakhir dengan `/exec`.
+11. Salin **URL Web App**. URL ini berakhir dengan `/exec`.
 
 > 💡 Gunakan **akaun Gmail biasa** untuk memiliki Sheet dan skrip ini. Sesetengah akaun DELIMa menyekat pilihan "Anyone".
 
@@ -201,6 +204,7 @@ firebase-gas/
   gas/Code.gs            Backend: API platform & sekolah, log masuk, logik tempahan
   gas/Index.html         Aplikasi untuk Apps Script (dijana oleh tools/build-gas.js)
   gas/Display.html       Paparan TV untuk Apps Script (dijana)
+  gas/Logo.html          Logo lalai sistem sebagai data URL (ditampal ke Apps Script)
   gas/appsscript.json    Manifest Apps Script
   public/                Sumber frontend + laman untuk Firebase Hosting
   public/assets/js/platform.js   Panel Super Admin

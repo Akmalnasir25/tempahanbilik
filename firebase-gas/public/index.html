@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sistem Tempahan Bilik Khas</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231e3a8a'/><path d='M9 23V9h9a5 5 0 010 10h-9' fill='none' stroke='white' stroke-width='3'/><circle cx='22' cy='23' r='2.5' fill='%2360a5fa'/></svg>">
+    <link rel="icon" href="/assets/img/logo-icon.png">
+    <link rel="apple-touch-icon" href="/assets/img/logo-icon.png">
+    <meta name="theme-color" content="#1e3a8a">
     <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="/assets/vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/assets/css/app.css?v=2" rel="stylesheet">
@@ -18,14 +20,14 @@
     </script>
 </head>
 <body class="app">
-<div id="boot" class="boot"><span class="brand-logo lg"><i class="bi bi-buildings"></i></span><div class="spinner-border spinner-border-sm"></div></div>
+<div id="boot" class="boot"><span class="brand-logo has-img is-default lg"><img src="/assets/img/logo.png" alt="Logo sistem" data-default-logo></span><div class="spinner-border spinner-border-sm"></div></div>
 
 <div id="auth" hidden></div>
 
 <div id="shell" hidden>
     <aside class="sidebar" id="sidebar">
         <a href="#/dashboard" class="brand">
-            <span class="brand-logo" id="sidebarLogo"><i class="bi bi-buildings"></i></span>
+            <span class="brand-logo has-img is-default" id="sidebarLogo"><img src="/assets/img/logo.png" alt="Logo sistem" data-default-logo></span>
             <span class="brand-text"><strong data-setting="system_name"></strong><small data-setting="school_name"></small></span>
         </a>
         <nav class="side-nav" id="sideNav"></nav>

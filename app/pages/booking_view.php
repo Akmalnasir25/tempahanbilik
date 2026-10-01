@@ -115,7 +115,7 @@ render_header('Tempahan ' . $booking['ref_no'], $isOwner ? 'my-bookings' : (is_a
         <div class="card booking-slip">
             <div class="slip-head" style="--c: <?= e($booking['room_color']) ?>">
                 <div class="d-flex align-items-center gap-3">
-                    <?= logo_url() ? brand_logo('lg') : '' ?>
+                    <?= brand_logo('lg') ?>
                     <div>
                         <div class="small opacity-75">No. Rujukan</div>
                         <div class="fs-4 fw-bold font-monospace"><?= e($booking['ref_no']) ?></div>

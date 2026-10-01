@@ -115,8 +115,17 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, 'gas/Code.gs'), 'utf8'), context
 vm.runInContext('CONFIG.WEB_URL = ' + JSON.stringify(process.env.WEB_URL === undefined ? BASE : process.env.WEB_URL) + ';', context);
 console.log(vm.runInContext('setup()', context));
 
+/** Mirrors defaultLogo_() in Code.gs: the bundled logo as a data URL. */
+function defaultLogo() {
+    try {
+        return fs.readFileSync(path.join(ROOT, 'gas', 'Logo.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
+    } catch (err) {
+        return '';
+    }
+}
+
 /* ---------------- HTTP ---------------- */
-const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/gas' && req.method === 'POST') {
@@ -135,7 +144,7 @@ http.createServer((req, res) => {
         const file = url.searchParams.get('page') === 'display' ? 'Display.html' : 'Index.html';
         const scriptUrl = 'http://' + req.headers.host + '/gas-app';
         const slug = String(url.searchParams.get('s') || '').toLowerCase();
-        const vars = { scriptUrl: scriptUrl, school: /^[a-z0-9-]{3,30}$/.test(slug) ? slug : '', platform: url.searchParams.get('page') === 'platform' };
+        const vars = { scriptUrl: scriptUrl, school: /^[a-z0-9-]{3,30}$/.test(slug) ? slug : '', platform: url.searchParams.get('page') === 'platform', defaultLogo: defaultLogo() };
         let html = fs.readFileSync(path.join(ROOT, 'gas', file), 'utf8')
             .replace(/<\?!=\s*JSON\.stringify\((\w+)\)\s*\?>/g, (m, k) => JSON.stringify(vars[k]));
         const shim = '<script>window.google={script:{run:(function(){function R(s,f){this.s=s;this.f=f;}' +
