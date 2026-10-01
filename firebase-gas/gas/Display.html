@@ -77,6 +77,8 @@ a { text-decoration: none; }
 .btn-icon { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--bs-body-color); border: 1px solid transparent; }
 .btn-icon:hover { background: var(--bs-secondary-bg); }
 .form-control, .form-select { border-color: var(--tb-border); background-color: var(--tb-surface); }
+/* Native dropdown lists: some browsers draw them on a white system background, so pin both colours or light text disappears in dark mode. */
+.form-select option, .form-select optgroup { background-color: var(--tb-surface); color: var(--bs-body-color); }
 .form-control:focus, .form-select:focus { border-color: #93c5fd; box-shadow: 0 0 0 .2rem rgba(59, 130, 246, .18); }
 .form-label { margin-bottom: .35rem; font-size: .875rem; }
 .input-icon { position: relative; }
