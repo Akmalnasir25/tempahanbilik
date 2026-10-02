@@ -249,12 +249,23 @@ window.App = (function () {
                     .api(JSON.stringify(payload));
             });
         }
-        return fetch(window.APP_CONFIG.gasUrl, {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow',
-        }).then(function (r) {
-            if (!r.ok) throw new Error('Pelayan tidak dapat dihubungi (' + r.status + ').');
-            return r.json();
-        }, function () { throw new Error('Tidak dapat menghubungi pelayan. Semak sambungan Internet anda.'); });
+        // Google's relay (script.googleusercontent.com) now and then loses the reply: a 404,
+        // or a bounce back to /exec that the browser reports as a CORS error. Retry with the
+        // same request id; the server replays a write that already ran instead of repeating it.
+        payload.rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+        var body = JSON.stringify(payload);
+        function attempt(left) {
+            return fetch(window.APP_CONFIG.gasUrl, {
+                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body, redirect: 'follow',
+            }).then(function (r) {
+                if (!r.ok) throw new Error('Pelayan tidak dapat dihubungi (' + r.status + ').');
+                return r.json();
+            }).catch(function (err) {
+                if (left > 0) return new Promise(function (res) { setTimeout(res, 700); }).then(function () { return attempt(left - 1); });
+                throw /^Pelayan tidak/.test(err.message) ? err : new Error('Tidak dapat menghubungi pelayan. Semak sambungan Internet anda.');
+            });
+        }
+        return attempt(2);
     }
 
     function api(action, data, opts) {

@@ -179,6 +179,22 @@ function handle_(req) {
   var action = String(req.action || '');
   var handler = ACTIONS[action];
   if (!handler) return { ok: false, code: 'NOT_FOUND', error: 'Tindakan tidak dikenali: ' + action };
+  // Google's googleusercontent relay sometimes loses a response, so the browser retries
+  // with the same request id. A write that already ran replays its saved result.
+  var ridKey = handler.write && /^[a-z0-9]{12,40}$/i.test(String(req.rid || '')) ? 'rid:' + req.rid : '';
+  if (ridKey) {
+    var seen = CacheService.getScriptCache().get(ridKey);
+    if (seen) return JSON.parse(seen);
+  }
+  var out = handleOnce_(req, handler);
+  if (ridKey) {
+    var str = JSON.stringify(out);
+    if (str.length < 90000) CacheService.getScriptCache().put(ridKey, str, 600);
+  }
+  return out;
+}
+
+function handleOnce_(req, handler) {
   var lock = null;
   _ss = null; _tables = {}; _ptables = {}; _currentSchoolSlug = '';
   try {
