@@ -300,7 +300,7 @@ window.App = (function () {
             '<div class="col-sm-6"><div class="feat"><i class="bi bi-arrow-repeat"></i><div><strong>Tempahan berulang</strong><span>Tempah slot yang sama setiap minggu</span></div></div></div>' +
             '</div></div></section><section class="auth-panel"><div class="auth-card">' +
             '<div class="d-lg-none text-center mb-4">' + brandLogo('lg mx-auto mb-2') + '<div class="fw-bold">' + esc(s.system_name || '') + '</div><div class="small text-body-secondary">' + esc(s.school_name || '') + '</div></div>' +
-            inner + '</div></section></div>';
+            inner + '<p class="auth-credit">Design by: Akmal Nasir</p></div></section></div>';
     }
 
     function showAuth(html) {
