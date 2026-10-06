@@ -813,12 +813,12 @@ action_('activate', { auth: false, write: true }, function (d) {
   var ic = normIc_(d.ic);
   if (!validIc_(ic)) throw apiError_('VALIDATION', 'No. Kad Pengenalan mestilah 12 digit.');
   if (normIc_(d.ic_confirm) !== ic) throw apiError_('VALIDATION', 'Pengesahan No. KP tidak sepadan.');
-  // The school code is public, so anyone could pick a name that has not been activated yet.
-  // The account therefore waits for the school admin to confirm it is really this teacher.
-  T('Users').update(u, { password_hash: hashSecret_(ic), status: 'pending', activated_at: nowStamp_() });
-  audit_({ user: u }, 'auth.activate', 'No. KP didaftarkan; menunggu pengesahan pentadbir');
-  notifyAdmins_('Log masuk kali pertama – perlu pengesahan', u.name + ' telah mendaftarkan No. KP dan menunggu pengesahan anda.', '#/admin/users?status=pending');
-  return { status: 'pending' };
+  // The admin registered this name, so the account is active straight away. The admin is told,
+  // and can use "Set semula kata laluan" if someone else claimed the name first.
+  T('Users').update(u, { password_hash: hashSecret_(ic), activated_at: nowStamp_() });
+  audit_({ user: u }, 'auth.activate', 'No. KP didaftarkan');
+  notifyAdmins_('Guru log masuk kali pertama', u.name + ' telah mendaftarkan No. KP dan log masuk. Jika ini bukan guru tersebut, set semula kata laluannya di Daftar & Urus Guru.', '#/admin/users');
+  return { token: createSession_(u, !!d.remember) };
 });
 
 action_('register', { auth: false, write: true }, function (d) {

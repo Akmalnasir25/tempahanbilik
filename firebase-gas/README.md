@@ -29,11 +29,11 @@ booking.akmalsys.com/platform    → Panel Super Admin (anda): cipta, gantung & 
 4. **Kali pertama:** guru **mendaftarkan No. Kad Pengenalan sendiri**.
    - No. KP mesti 12 digit dan ditaip dua kali.
    - No. KP ini menjadi kata laluan guru.
-   - **Akaun kemudian menunggu pengesahan admin sekolah.** Ini menghalang orang luar yang tahu kod sekolah daripada mendaftar menggunakan nama guru lain.
-5. **Admin sekolah mengesahkan** di **Daftar & Urus Guru**: klik **Sahkan**, atau **Sahkan semua**. Jika pendaftaran mencurigakan, klik **Tolak**: No. KP itu dibuang dan guru sebenar boleh mendaftar semula.
+   - **Guru terus log masuk** kerana nama mereka sudah didaftarkan oleh admin. Tiada pengesahan admin diperlukan.
+5. Admin sekolah menerima notifikasi setiap kali guru log masuk kali pertama. Jika bukan guru sebenar yang mendaftar, klik **Set semula kata laluan** di **Daftar & Urus Guru**: No. KP itu dibuang dan guru sebenar boleh mendaftar semula.
 6. **Seterusnya:** pilih nama dan masukkan No. KP. Sengkang dibenarkan, contohnya `900101-10-1234`.
 7. Guru boleh menukar kata laluan di **Profil Saya**.
-8. Jika guru lupa kata laluan, admin sekolah klik **Set semula kata laluan**. Guru mendaftarkan No. KP semula, dan admin mengesahkannya sekali lagi.
+8. Jika guru lupa kata laluan, admin sekolah klik **Set semula kata laluan**. Guru mendaftarkan No. KP semula dan terus log masuk.
 
 Keselamatan:
 - No. KP dan kata laluan disimpan sebagai cincangan bergaram (*salted hash*), bukan teks biasa.
@@ -182,8 +182,8 @@ Format: `Nama, Panitia (pilihan), E-mel (pilihan)`. E-mel hanya digunakan untuk 
 | Masalah | Penyelesaian |
 |---|---|
 | "Kod sekolah tidak dijumpai" | Semak ejaan kod, atau semak senarai di panel Super Admin |
-| Guru "menunggu pengesahan" | Admin sekolah klik **Sahkan** di **Daftar & Urus Guru** |
-| Guru kata "akaun sudah didaftarkan" tetapi bukan dia | Admin klik **Tolak** (jika masih menunggu) atau **Set semula kata laluan** |
+| Guru yang mendaftar sendiri "menunggu pengesahan" | Admin sekolah klik **Sahkan** di **Daftar & Urus Guru** |
+| Guru kata "akaun sudah didaftarkan" tetapi bukan dia | Admin klik **Set semula kata laluan** |
 | Sekolah "digantung" | Aktifkan semula di panel Super Admin |
 | Admin sekolah lupa kata laluan | Panel Super Admin → Urus → **Set semula** |
 | Nama guru tiada dalam dropdown | Pastikan guru didaftarkan dan berstatus **Aktif** |

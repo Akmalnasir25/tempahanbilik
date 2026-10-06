@@ -154,34 +154,15 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     assert(await guru.isVisible('text=tidak sepadan'), 'Pengesahan No. KP yang tidak sepadan ditolak');
     await guru.fill('#loginStep [name=ic_confirm]', '900101101234');
     await guru.click('#loginStep button.btn-primary');
-    await wait(guru, 'text=No. KP berjaya didaftarkan');
-    assert(true, 'Selepas daftar No. KP, akaun menunggu pengesahan admin');
-    await guru.screenshot({ path: SHOTS + '/04b-pending.png' });
-    const guruId = (await gas({ action: 'config' })).data.teachers.find((t) => t.name.startsWith('Cikgu Ali')).id;
-    assert((await gas({ action: 'login', data: { user_id: guruId, password: '900101101234' } })).code === 'PENDING', 'Log masuk disekat sehingga admin mengesahkan');
-    await guru.click('#backLogin3');
-    await wait(guru, '#userSelect');
-    assert(await guru.isVisible('text=Menunggu pengesahan'), 'Halaman log masuk menunjukkan status menunggu');
-
-    log('3b. Admin tolak (disyaki dirampas), guru daftar semula, admin sahkan');
-    await admin.goto(SB + '#/admin/users?status=pending');
-    await wait(admin, '[data-reject]');
-    await admin.screenshot({ path: SHOTS + '/04c-admin-pending.png', fullPage: true });
-    await admin.click('[data-reject]');
-    await admin.click('[data-confirm-ok]');
-    await wait(admin, '.tb-toast >> text=ditolak');
-    const again = (await gas({ action: 'config' })).data.teachers.find((t) => t.id === guruId);
-    assert(again && !again.activated && !again.pending, 'Selepas ditolak, akaun kembali belum didaftar (guru sebenar boleh daftar semula)');
-    assert((await gas({ action: 'activate', data: { user_id: guruId, ic: '900101101234', ic_confirm: '900101101234' } })).data.status === 'pending', 'Guru mendaftar semula No. KP');
-    await admin.goto(SB + '#/admin/users');
-    await wait(admin, '#approveAll');
-    await admin.click('#approveAll');
-    await admin.click('[data-confirm-ok]');
-    await wait(admin, '.tb-toast >> text=akaun disahkan');
-    await guru.reload();
-    await login(guru, 'Cikgu Ali', '900101101234');
     await wait(guru, '.hero-card');
-    assert(true, 'Guru masuk selepas admin mengesahkan');
+    assert(true, 'Selepas daftar No. KP, guru yang didaftar admin terus log masuk tanpa pengesahan');
+    await guru.screenshot({ path: SHOTS + '/04b-first-login-done.png' });
+    const guruId = (await gas({ action: 'config' })).data.teachers.find((t) => t.name.startsWith('Cikgu Ali')).id;
+    assert((await gas({ action: 'login', data: { user_id: guruId, password: '900101101234' } })).ok, 'Log masuk dengan No. KP berfungsi serta-merta');
+    assert((await gas({ action: 'activate', data: { user_id: guruId, ic: '111111111111', ic_confirm: '111111111111' } })).code === 'VALIDATION', 'Nama yang sudah didaftarkan tidak boleh didaftar semula');
+    await admin.goto(SB + '#/notifications');
+    await wait(admin, 'text=Guru log masuk kali pertama');
+    assert(true, 'Admin dimaklumkan tentang log masuk kali pertama');
 
     log('4. Log keluar & log masuk semula dengan No. KP');
     await guru.click('#userChip');
@@ -319,9 +300,8 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     await guru.reload();
     await wait(guru, '#userSelect');
     assert(await guru.isVisible('#loginStep [name=ic]'), 'Sesi lama tamat & paparan kali pertama muncul');
-    await gas({ action: 'activate', data: { user_id: guruId, ic: '900101101234', ic_confirm: '900101101234' } });
-    await admin.evaluate((id) => App.api('admin.users.setStatus', { id: id, status: 'active' }), guruId);
-    assert((await gas({ action: 'login', data: { user_id: guruId, password: '900101101234' } })).ok, 'Selepas set semula: daftar No. KP + pengesahan admin, kemudian boleh log masuk');
+    assert((await gas({ action: 'activate', data: { user_id: guruId, ic: '900101101234', ic_confirm: '900101101234' } })).data.token, 'Selepas set semula: daftar No. KP dan terus log masuk');
+    assert((await gas({ action: 'login', data: { user_id: guruId, password: '900101101234' } })).ok, 'Selepas set semula: No. KP baharu berfungsi');
 
     log('10. Keselamatan');
     await login(guru, 'Cikgu Baru', '880202025555');
@@ -332,7 +312,6 @@ const gas = (body, school) => post(Object.assign({ school: school || SLUG }, bod
     assert((await gas({ action: 'dashboard', token: 'palsu' })).code === 'AUTH', 'Token palsu ditolak');
     const sitiId = (await gas({ action: 'config' })).data.teachers.find((t) => t.name.startsWith('Lim')).id;
     await gas({ action: 'activate', data: { user_id: sitiId, ic: '770707077777', ic_confirm: '770707077777' } });
-    await admin.evaluate((id) => App.api('admin.users.setStatus', { id: id, status: 'active' }), sitiId);
     let last;
     for (let i = 0; i < 6; i++) last = await gas({ action: 'login', data: { user_id: sitiId, password: 'salah' + i } });
     assert(last.code === 'LOCKED', 'Akaun dikunci selepas 5 cubaan salah');

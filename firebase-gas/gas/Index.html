@@ -971,7 +971,7 @@ window.App = (function () {
                     icInput('ic', 'No. Kad Pengenalan', true) + icInput('ic_confirm', 'Sahkan No. Kad Pengenalan') +
                     '<div class="form-check mb-4"><input class="form-check-input" type="checkbox" id="remember" checked><label class="form-check-label small" for="remember">Ingat saya pada peranti ini</label></div>' +
                     '<button class="btn btn-primary btn-lg w-100 fw-semibold">Daftar No. KP <i class="bi bi-arrow-right ms-1"></i></button>' +
-                    '<div class="xsmall text-body-secondary mt-2 text-center">Pentadbir sekolah akan mengesahkan akaun anda sebelum anda boleh log masuk.</div>';
+                    '<div class="xsmall text-body-secondary mt-2 text-center">Selepas didaftarkan, anda terus log masuk. Gunakan No. KP ini untuk log masuk seterusnya.</div>';
                 $$('[name=ic], [name=ic_confirm]', step).forEach(function (i) { i.type = 'password'; });
             }
             $$('[data-reveal]', step).forEach(function (b) {
